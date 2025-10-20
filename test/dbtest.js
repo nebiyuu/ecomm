@@ -1,12 +1,13 @@
-const sequelize = require("../model/index");
+// test/dbtest.js
+import sequelize from "../model/index.js";
 
-async function testConnection() {
+(async () => {
   try {
     await sequelize.authenticate();
-    console.log("✅ Connection has been established successfully.");
-  } catch (error) {
-    console.error("❌ Unable to connect to the database:", error);
+    console.log("✅ Connection successful!");
+  } catch (err) {
+    console.error("❌ Connection failed:", err.message);
+  } finally {
+    await sequelize.close();
   }
-}
-
-testConnection();
+})();

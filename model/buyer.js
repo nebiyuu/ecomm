@@ -1,7 +1,8 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("./index");
-const bcrypt = require("bcrypt");
-const User = require("./user");
+import { DataTypes } from "sequelize";
+import sequelize from "./index.js";
+import { hash as _hash } from "bcrypt";
+// buyer.js
+import User from "./user.js";
 
 const SALT_ROUNDS = 10;
 
@@ -16,7 +17,7 @@ const Buyer = sequelize.define("Buyer", {
   hooks: {
     beforeCreate: async (buyer) => {
       // hash password
-      const hash = await bcrypt.hash(buyer.password, SALT_ROUNDS);
+      const hash = await _hash(buyer.password, SALT_ROUNDS);
       buyer.password = hash;
 
       // create corresponding user
@@ -29,11 +30,11 @@ const Buyer = sequelize.define("Buyer", {
     },
     beforeUpdate: async (buyer) => {
       if (buyer.changed("password")) {
-        const hash = await bcrypt.hash(buyer.password, SALT_ROUNDS);
+        const hash = await _hash(buyer.password, SALT_ROUNDS);
         buyer.password = hash;
       }
     }
   }
 });
 
-module.exports = Buyer;
+export default Buyer;

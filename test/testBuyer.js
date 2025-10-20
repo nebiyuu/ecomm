@@ -1,19 +1,19 @@
-const sequelize = require("../model/index");
-const Buyer = require("../model/buyer");
-const User = require("../model/user");
-const bcrypt = require("bcrypt");
+// test/testBuyer.js
+import Buyer from "../model/buyer.js";
+import User from "../model/user.js";
+import sequelize from "../model/index.js";
+import { compare } from "bcrypt";
 
 async function testBuyer() {
   try {
     // sync both tables
-    await User.sync({ alter: true });
-    await Buyer.sync({ alter: true });
+    await sequelize.sync({ alter: true });
     console.log("✅ Tables synced successfully");
 
     // create new buyer
     const newBuyer = await Buyer.create({
-      username: "nebuser",
-      email: "neb@example.com",
+      username: "papii",
+      email: "papii@example.com",
       password: "supersecretpassword",
     });
 
@@ -25,7 +25,7 @@ async function testBuyer() {
     });
 
     // check corresponding user
-    const user = await User.findOne({ where: { username: "nebuser" } });
+    const user = await User.findOne({ where: { username: "papii" } });
     console.log("🔹 User table entry:", {
       id: user.id,
       username: user.username,
@@ -35,7 +35,7 @@ async function testBuyer() {
     });
 
     // verify password
-    const isMatch = await bcrypt.compare("supersecretpassword", newBuyer.password);
+    const isMatch = await compare("supersecretpassword", newBuyer.password);
     console.log("🔑 Password matches?", isMatch);
 
   } catch (error) {

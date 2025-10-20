@@ -1,4 +1,4 @@
-const { Sequelize } = require("sequelize");
+import { Sequelize } from "sequelize";
 require("dotenv").config(); // fixed dotenv import
 
 const sequelize = new Sequelize(
@@ -13,4 +13,4 @@ const sequelize = new Sequelize(
   }
 );
 
-module.exports = sequelize; // fixed export
+export default sequelize; // fixed export
