@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import sequelize from "./model/index.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
+import sellerRoutes from "./routes/sellerRoutes.js";
+
 
 dotenv.config();
 const app = express();
@@ -9,6 +11,8 @@ app.use(express.json());
 
 // routes
 app.use("/api/buyers", buyerRoutes);
+app.use("/api/sellers", sellerRoutes);
+
 
 // connect db
 sequelize.authenticate()
