@@ -18,9 +18,9 @@ const sequelize = new Sequelize(
 );
 
 // ⚙️ TEMP: Update schema to match models
-sequelize
-  .sync({ alter: true })
-  .then(() => console.log("✅ Database schema updated successfully"))
-  .catch((err) => console.error("❌ Error syncing database:", err));
+// sequelize
+//   .sync({ alter: true })
+//   .then(() => console.log("✅ Database schema updated successfully"))
+//   .catch((err) => console.error("❌ Error syncing database:", err));
 
 export default sequelize;

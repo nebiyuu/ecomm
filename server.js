@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import sequelize from "./model/index.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
+import { loginUser } from "./controllers/usercontroller.js";
 
 
 dotenv.config();
@@ -12,6 +13,8 @@ app.use(express.json());
 // routes
 app.use("/api/buyers", buyerRoutes);
 app.use("/api/sellers", sellerRoutes);
+app.use("/api/login", loginUser);
+
 
 
 // connect db
