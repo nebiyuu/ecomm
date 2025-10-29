@@ -4,19 +4,22 @@ import jwt from "jsonwebtoken";
 
 export const registerBuyer = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { firstName, lastName, username, email, phoneNumber, password } = req.body;
 
-    if (!username || !email || !password)
+    if (!firstName || !lastName || !username || !email || !phoneNumber || !password)
       return res.status(400).json({ message: "All fields required" });
 
-    const buyer = await Buyer.create({ username, email, password });
+    const buyer = await Buyer.create({ firstName, lastName, username, email, phoneNumber, password });
 
     res.status(201).json({
       message: "Buyer registered successfully",
       buyer: {
         id: buyer.id,
+        firstName: buyer.firstName,
+        lastName: buyer.lastName,
         username: buyer.username,
         email: buyer.email,
+        phoneNumber: buyer.phoneNumber,
       },
     });
   } catch (err) {
@@ -24,6 +27,7 @@ export const registerBuyer = async (req, res) => {
     res.status(500).json({ message: "Error registering buyer", error: err.message });
   }
 };
+
 
 export const loginBuyer = async (req, res) => {
   const { username, password } = req.body;

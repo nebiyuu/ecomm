@@ -2,6 +2,7 @@
 import { Sequelize } from "sequelize";
 import dotenv from "dotenv";
 
+
 dotenv.config();
 
 const sequelize = new Sequelize(
@@ -15,5 +16,11 @@ const sequelize = new Sequelize(
     logging: false,
   }
 );
+
+// ⚙️ TEMP: Update schema to match models
+sequelize
+  .sync({ alter: true })
+  .then(() => console.log("✅ Database schema updated successfully"))
+  .catch((err) => console.error("❌ Error syncing database:", err));
 
 export default sequelize;
