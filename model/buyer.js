@@ -15,6 +15,10 @@ const Buyer = sequelize.define(
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     phoneNumber: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: false },
+    emailVerified: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    emailOtpHash: { type: DataTypes.STRING, allowNull: true },
+    emailOtpExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    emailOtpAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   },
   {
     tableName: "buyers",
@@ -23,19 +27,33 @@ const Buyer = sequelize.define(
       beforeCreate: async (buyer) => {
         const hash = await _hash(buyer.password, SALT_ROUNDS);
         buyer.password = hash;
-
-        // create corresponding user
-        await User.create({
-          username: buyer.username,
-          email: buyer.email,
-          password: buyer.password,
-          role: "buyer",
-        });
+        // Do not create corresponding user until email is verified
+        if (buyer.emailVerified) {
+          await User.create({
+            username: buyer.username,
+            email: buyer.email,
+            password: buyer.password,
+            role: "buyer",
+          });
+        }
       },
       beforeUpdate: async (buyer) => {
         if (buyer.changed("password")) {
           const hash = await _hash(buyer.password, SALT_ROUNDS);
           buyer.password = hash;
+        }
+      },
+      afterUpdate: async (buyer) => {
+        if (buyer.changed("emailVerified") && buyer.emailVerified) {
+          const existing = await User.findOne({ where: { email: buyer.email } });
+          if (!existing) {
+            await User.create({
+              username: buyer.username,
+              email: buyer.email,
+              password: buyer.password,
+              role: "buyer",
+            });
+          }
         }
       },
     },

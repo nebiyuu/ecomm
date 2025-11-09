@@ -1,18 +1,29 @@
 import Buyer from "../model/buyer.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
 
 export const registerBuyer = async (req, res) => {
+  const { firstName, lastName, username, email, phoneNumber, password } = req.body;
   try {
-    const { firstName, lastName, username, email, phoneNumber, password } = req.body;
 
     if (!firstName || !lastName || !username || !email || !phoneNumber || !password)
       return res.status(400).json({ message: "All fields required" });
 
-    const buyer = await Buyer.create({ firstName, lastName, username, email, phoneNumber, password });
+    const buyer = await Buyer.create({ firstName, lastName, username, email, phoneNumber, password, emailVerified: false });
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpHash = await bcrypt.hash(otp, 10);
+    buyer.emailOtpHash = otpHash;
+    buyer.emailOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    buyer.emailOtpAttempts = 0;
+    await buyer.save();
+
+    const { text, html } = otpEmailTemplate({ name: buyer.firstName, otp });
+    await sendMail({ to: buyer.email, subject: "Verify your email", text, html });
 
     res.status(201).json({
-      message: "Buyer registered successfully",
+      message: "Buyer registered. OTP sent to email for verification",
       buyer: {
         id: buyer.id,
         firstName: buyer.firstName,
@@ -20,11 +31,78 @@ export const registerBuyer = async (req, res) => {
         username: buyer.username,
         email: buyer.email,
         phoneNumber: buyer.phoneNumber,
+        emailVerified: buyer.emailVerified,
       },
     });
   } catch (err) {
+    const existing = await Buyer.findOne({ where: { username } });
+    if (existing)
+      return res.status(400).json({ message: "Username already exists" });
+    const existingEmail = await Buyer.findOne({ where: { email } });
+    if (existingEmail)
+      return res.status(400).json({ message: "Email already exists" });
+    else {
+      console.error(err);
+      res.status(500).json({ message: "Error registering buyer", error: err.message });
+    }
+  }
+};
+
+export const verifyBuyerEmail = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: "email and otp required" });
+
+    const buyer = await Buyer.findOne({ where: { email } });
+    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+    if (buyer.emailVerified) return res.status(200).json({ message: "Email already verified" });
+    if (!buyer.emailOtpHash || !buyer.emailOtpExpiresAt) return res.status(400).json({ message: "No OTP pending" });
+    if (buyer.emailOtpAttempts >= 5) return res.status(429).json({ message: "Too many attempts. Request a new OTP" });
+    if (new Date() > new Date(buyer.emailOtpExpiresAt)) return res.status(400).json({ message: "OTP expired" });
+
+    const match = await bcrypt.compare(otp, buyer.emailOtpHash);
+    if (!match) {
+      buyer.emailOtpAttempts += 1;
+      await buyer.save();
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    buyer.emailVerified = true;
+    buyer.emailOtpHash = null;
+    buyer.emailOtpExpiresAt = null;
+    buyer.emailOtpAttempts = 0;
+    await buyer.save();
+
+    return res.status(200).json({ message: "Email verified successfully" });
+  } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error registering buyer", error: err.message });
+    res.status(500).json({ message: "Error verifying email", error: err.message });
+  }
+};
+
+export const resendBuyerOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "email required" });
+
+    const buyer = await Buyer.findOne({ where: { email } });
+    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+    if (buyer.emailVerified) return res.status(200).json({ message: "Email already verified" });
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpHash = await bcrypt.hash(otp, 10);
+    buyer.emailOtpHash = otpHash;
+    buyer.emailOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    buyer.emailOtpAttempts = 0;
+    await buyer.save();
+
+    const { text, html } = otpEmailTemplate({ name: buyer.firstName, otp });
+    await sendMail({ to: buyer.email, subject: "Your new verification code", text, html });
+
+    return res.status(200).json({ message: "OTP resent" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error resending OTP", error: err.message });
   }
 };
 
