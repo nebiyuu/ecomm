@@ -46,13 +46,21 @@ const Buyer = sequelize.define(
       afterUpdate: async (buyer) => {
         if (buyer.changed("emailVerified") && buyer.emailVerified) {
           const existing = await User.findOne({ where: { email: buyer.email } });
-          if (!existing) {
-            await User.create({
-              username: buyer.username,
-              email: buyer.email,
-              password: buyer.password,
-              role: "buyer",
-            });
+          const existingByUsername = await User.findOne({ where: { username: buyer.username } });
+          if (!existing && !existingByUsername) {
+            try {
+              await User.create({
+                username: buyer.username,
+                email: buyer.email,
+                password: buyer.password,
+                role: "buyer",
+              });
+            } catch (err) {
+              if (err.name !== "SequelizeUniqueConstraintError") {
+                throw err;
+              }
+              // ignore unique violations to avoid failing the original update
+            }
           }
         }
       },

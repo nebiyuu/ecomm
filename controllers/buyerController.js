@@ -67,18 +67,39 @@ export const verifyBuyerEmail = async (req, res) => {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
+    // OTP is correct, verify email
     buyer.emailVerified = true;
     buyer.emailOtpHash = null;
     buyer.emailOtpExpiresAt = null;
     buyer.emailOtpAttempts = 0;
-    await buyer.save();
+    await buyer.save({ validate: false });
 
-    return res.status(200).json({ message: "Email verified successfully" });
+    // Generate JWT
+    const token = jwt.sign(
+      { id: buyer.id, username: buyer.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
+      message: "Email verified successfully",
+      token,
+      buyer: {
+        id: buyer.id,
+        firstName: buyer.firstName,
+        lastName: buyer.lastName,
+        username: buyer.username,
+        email: buyer.email,
+        phoneNumber: buyer.phoneNumber,
+        emailVerified: buyer.emailVerified,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error verifying email", error: err.message });
   }
 };
+
 
 export const resendBuyerOtp = async (req, res) => {
   try {
@@ -106,4 +127,116 @@ export const resendBuyerOtp = async (req, res) => {
   }
 };
 
+export const getBuyer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const buyer = await Buyer.findByPk(id);
+    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+    return res.status(200).json({
+      buyer: {
+        id: buyer.id,
+        firstName: buyer.firstName,
+        lastName: buyer.lastName,
+        username: buyer.username,
+        email: buyer.email,
+        phoneNumber: buyer.phoneNumber,
+        emailVerified: buyer.emailVerified,
+        createdAt: buyer.createdAt,
+        updatedAt: buyer.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error fetching buyer", error: err.message });
+  }
+};
 
+export const updateBuyer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const buyer = await Buyer.findByPk(id);
+    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+
+    const allowed = ["firstName", "lastName", "username", "email", "phoneNumber", "password"];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+        buyer[key] = req.body[key];
+      }
+    }
+
+    await buyer.save();
+
+    return res.status(200).json({
+      message: "Buyer updated",
+      buyer: {
+        id: buyer.id,
+        firstName: buyer.firstName,
+        lastName: buyer.lastName,
+        username: buyer.username,
+        email: buyer.email,
+        phoneNumber: buyer.phoneNumber,
+        emailVerified: buyer.emailVerified,
+        createdAt: buyer.createdAt,
+        updatedAt: buyer.updatedAt,
+      },
+    });
+  } catch (err) {
+    // Handle unique constraint or other validation errors
+    if (err.name === "SequelizeUniqueConstraintError") {
+      const fields = err.errors?.map((e) => e.path) || [];
+      if (fields.includes("username")) return res.status(400).json({ message: "Username already exists" });
+      if (fields.includes("email")) return res.status(400).json({ message: "Email already exists" });
+      if (fields.includes("phoneNumber")) return res.status(400).json({ message: "Phone number already exists" });
+    }
+    console.error(err);
+    res.status(500).json({ message: "Error updating buyer", error: err.message });
+  }
+};
+
+export const deleteBuyer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const buyer = await Buyer.findByPk(id);
+    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+    await buyer.destroy();
+    return res.status(200).json({ message: "Buyer deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error deleting buyer", error: err.message });
+  }
+};
+
+export const listBuyers = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 100);
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await Buyer.findAndCountAll({
+      offset,
+      limit,
+      order: [["createdAt", "DESC"]],
+      attributes: [
+        "id",
+        "firstName",
+        "lastName",
+        "username",
+        "email",
+        "phoneNumber",
+        "emailVerified",
+        "createdAt",
+        "updatedAt",
+      ],
+    });
+
+    return res.status(200).json({
+      total: count,
+      page,
+      limit,
+      buyers: rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error listing buyers", error: err.message });
+  }
+};
