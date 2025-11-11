@@ -1,12 +1,14 @@
 import express from "express";
-import { registerSeller } from "../controllers/sellerController.js";
-import { loginSeller } from "../controllers/sellerController.js";
-import { loginUser } from "../controllers/usercontroller.js";
+import { loginUser, sendUserOtp, verifyUserEmail, resendUserOtp, deleteUser } from "../controllers/usercontroller.js";
+import { requireAuth } from "../middlewares/auth.js";
 
-//const router = express.Router();
+const router = express.Router();
 
-router.post("/register", registerSeller);
-//router.post("/login", loginUser);
+router.post("/login", loginUser);
+router.post("/verify-email", verifyUserEmail);
+router.post("/resend-otp", resendUserOtp);
+router.delete("/:id", requireAuth, deleteUser);
+//router.post("/send-otp", sendUserOtp);
 
 
 export default router;

@@ -17,6 +17,10 @@ const Seller = sequelize.define(
     address: { type: DataTypes.STRING, allowNull: false },
     license: { type: DataTypes.STRING, allowNull: false },
     approved: { type: DataTypes.BOOLEAN, defaultValue: false },
+    emailVerified: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    emailOtpHash: { type: DataTypes.STRING, allowNull: true },
+    emailOtpExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    emailOtpAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   },
   {
     tableName: "sellers",

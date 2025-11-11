@@ -7,8 +7,8 @@ const router = express.Router();
 
 // POST /api/buyers
 router.post("/register", registerBuyer);
-router.post("/verify-email", verifyBuyerEmail);
-router.post("/resend-otp", resendBuyerOtp);
+// router.post("/verify-email", verifyBuyerEmail);
+// router.post("/resend-otp", resendBuyerOtp);
 //router.post("/login", loginBuyer);
 
 // CRUD
