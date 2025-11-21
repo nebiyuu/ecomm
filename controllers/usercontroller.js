@@ -40,8 +40,6 @@ export const loginUser = async (req, res) => {
         return res.status(403).json({ message: "Email not verified" });
       if (!seller.approved)
         return res.status(403).json({ message: "Seller not approved yet" });
-    } else if (user.role === "admin") {
-      // no additional checks
     }
 
     const token = jwt.sign(
@@ -197,7 +195,6 @@ export const resendUserOtp = async (req, res) => {
     res.status(500).json({ message: "Error resending OTP", error: err.message });
   }
 };
-
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -210,32 +207,22 @@ export const deleteUser = async (req, res) => {
     const isAdmin = req.user.role === "admin";
     if (!isSelf && !isAdmin) return res.status(403).json({ message: "Forbidden" });
 
-    // Best-effort cleanup from domain tables by email/username
+    // Soft delete: mark user as deleted
+    await user.update({ deletedAt: new Date() });
+
+    // Soft delete related records in Buyer/Seller
     const whereEmail = { where: { email: user.email } };
     const whereUsername = { where: { username: user.username } };
 
-    // Try delete seller records
-    const sellerByEmail = await Seller.findOne(whereEmail);
-    if (sellerByEmail) await sellerByEmail.destroy();
-    else {
-      const sellerByUsername = await Seller.findOne(whereUsername);
-      if (sellerByUsername) await sellerByUsername.destroy();
-    }
+    const seller = await Seller.findOne(whereEmail) || await Seller.findOne(whereUsername);
+    if (seller) await seller.update({ deletedAt: new Date() });
 
-    // Try delete buyer records
-    const buyerByEmail = await Buyer.findOne(whereEmail);
-    if (buyerByEmail) await buyerByEmail.destroy();
-    else {
-      const buyerByUsername = await Buyer.findOne(whereUsername);
-      if (buyerByUsername) await buyerByUsername.destroy();
-    }
+    const buyer = await Buyer.findOne(whereEmail) || await Buyer.findOne(whereUsername);
+    if (buyer) await buyer.update({ deletedAt: new Date() });
 
-    // Finally delete the user record
-    await user.destroy();
-
-    return res.status(200).json({ message: "User and related records deleted" });
+    return res.status(200).json({ message: "User and related records soft-deleted" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error deleting user", error: err.message });
+    res.status(500).json({ message: "Error soft-deleting user", error: err.message });
   }
 };
