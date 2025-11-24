@@ -5,7 +5,7 @@ import buyerRoutes from "./routes/buyerRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/loginrouter.js";
-
+import productRoutes from "./routes/productRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -16,6 +16,7 @@ app.use("/api/buyers", buyerRoutes);
 app.use("/api/sellers", sellerRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
 
 
 

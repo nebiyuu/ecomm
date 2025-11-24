@@ -98,6 +98,49 @@
     </ul>
   </div>
 
+  <h2>Products</h2>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/products</code> <span class="pill auth">Public</span></div>
+    <div>Lists all products.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>No authentication required</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "count": number, "data": Product[] }</code></li>
+      <li>500: <code>{ "message": "Error retrieving products", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/products</code> <span class="pill protected">JWT (Seller)</span></div>
+    <div>Creates a new product. Only authenticated sellers can create products.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Body:
+<pre>{
+  "name": "string (required, min 3 chars)",
+  "description": "string (required, min 10 chars)",
+  "category": "string (required)",
+  "condition": "string (optional, enum: ['new', 'used', 'refurbished'], default: 'new')",
+  "price": "number (required, > 0)",
+  "images": "string[] (optional, array of image URLs)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>201: <code>{ "success": true, "data": Product }</code></li>
+      <li>400: <code>{ "message": "Validation error", "errors": [...] }</code></li>
+      <li>401: <code>{ "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "message": "Only sellers can create products" }</code></li>
+      <li>500: <code>{ "message": "Error creating product", "error": "..." }</code></li>
+    </ul>
+  </div>
+
   <h2>Buyers</h2>
 
   <div class="endpoint">
