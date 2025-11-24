@@ -31,11 +31,21 @@ const Product = sequelize.define("Product", {
       key: 'id'
     },
     field: 'owner_id'
+  },
+  deletedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   tableName: "products",
   timestamps: true,
-  underscored: true
+  underscored: true,
+  paranoid: true,
+  defaultScope: {
+    where: {
+      deletedAt: null
+    }
+  }
 });
 
 export default Product;
