@@ -30,5 +30,48 @@ export const createProductValidation = [
         throw new Error('All images must be strings');
       }
       return true;
-    })
+    }),
+    
+  body('ownerId')
+    .optional()
+    .isInt({ gt: 0 }).withMessage('Owner ID must be a positive integer')
+];
+
+export const updateProductValidation = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 100 }).withMessage('Name must be between 3 and 100 characters'),
+  
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
+  
+  body('category')
+    .optional()
+    .trim()
+    .notEmpty().withMessage('Category cannot be empty'),
+  
+  body('condition')
+    .optional()
+    .isIn(['new', 'used', 'refurbished']).withMessage('Invalid product condition'),
+  
+  body('price')
+    .optional()
+    .isFloat({ gt: 0 }).withMessage('Price must be greater than 0'),
+  
+  body('images')
+    .optional()
+    .isArray().withMessage('Images must be an array')
+    .custom((images) => {
+      if (!images.every(image => typeof image === 'string')) {
+        throw new Error('All images must be strings');
+      }
+      return true;
+    }),
+    
+  body('ownerId')
+    .optional()
+    .isInt({ gt: 0 }).withMessage('Owner ID must be a positive integer')
 ];
