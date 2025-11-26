@@ -102,42 +102,108 @@
 
   <div class="endpoint">
     <div><span class="method">GET</span> <code>/api/products</code> <span class="pill auth">Public</span></div>
-    <div>Lists all products.</div>
+    <div>Lists all products. Admins can see soft-deleted products as well.</div>
     <h4>Request</h4>
     <ul>
-      <li>No authentication required</li>
+      <li>No authentication required for basic listing</li>
+      <li>Admins can include deleted products in results</li>
     </ul>
     <h4>Responses</h4>
     <ul>
       <li>200: <code>{ "success": true, "count": number, "data": Product[] }</code></li>
-      <li>500: <code>{ "message": "Error retrieving products", "error": "..." }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving products", "error": "..." }</code></li>
     </ul>
   </div>
 
   <div class="endpoint">
-    <div><span class="method">POST</span> <code>/api/products</code> <span class="pill protected">JWT (Seller)</span></div>
-    <div>Creates a new product. Only authenticated sellers can create products.</div>
+    <div><span class="method">GET</span> <code>/api/products/:id</code> <span class="pill auth">Public</span></div>
+    <div>Get a specific product by ID.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+      <li>Admins can retrieve soft-deleted products</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": Product }</code></li>
+      <li>404: <code>{ "success": false, "message": "Product not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving product", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/products</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
+    <div>Creates a new product. Only authenticated sellers or admins can create products.</div>
     <h4>Request</h4>
     <ul>
       <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
-      <li>Body:
+      <li>Body (JSON):
 <pre>{
-  "name": "string (required, min 3 chars)",
+  "name": "string (required, min 3, max 100 chars)",
   "description": "string (required, min 10 chars)",
   "category": "string (required)",
   "condition": "string (optional, enum: ['new', 'used', 'refurbished'], default: 'new')",
   "price": "number (required, > 0)",
-  "images": "string[] (optional, array of image URLs)"
+  "images": "string[] (optional, array of image URLs)",
+  "ownerId": "number (optional, admin only - for assigning product to specific seller)"
 }</pre>
       </li>
     </ul>
     <h4>Responses</h4>
     <ul>
       <li>201: <code>{ "success": true, "data": Product }</code></li>
-      <li>400: <code>{ "message": "Validation error", "errors": [...] }</code></li>
-      <li>401: <code>{ "message": "Unauthorized" }</code></li>
-      <li>403: <code>{ "message": "Only sellers can create products" }</code></li>
-      <li>500: <code>{ "message": "Error creating product", "error": "..." }</code></li>
+      <li>400: <code>{ "success": false, "message": "Validation error", "errors": [...] }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "Only sellers and admins can create products" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error creating product", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">PUT</span> <code>/api/products/:id</code> <span class="pill protected">JWT (Owner/Admin)</span></div>
+    <div>Updates an existing product. Only the product owner or admin can update it.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID to update (required)</li>
+      <li>Body (JSON, all fields optional except for the ones being updated):
+<pre>{
+  "name": "string (min 3, max 100 chars)",
+  "description": "string (min 10 chars)",
+  "category": "string",
+  "condition": "string (enum: ['new', 'used', 'refurbished'])",
+  "price": "number (> 0)",
+  "images": "string[] (array of image URLs)",
+  "ownerId": "number (admin only - for transferring product ownership)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": UpdatedProduct }</code></li>
+      <li>400: <code>{ "success": false, "message": "Validation error", "errors": [...] }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "Not authorized to update this product" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Product not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error updating product", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">DELETE</span> <code>/api/products/:id</code> <span class="pill protected">JWT (Owner/Admin)</span></div>
+    <div>Soft deletes a product. Only the product owner or admin can delete it. The product is not actually removed from the database but marked as deleted.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID to delete (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "message": "Product deleted successfully" }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "Not authorized to delete this product" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Product not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error deleting product", "error": "..." }</code></li>
     </ul>
   </div>
 
