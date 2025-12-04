@@ -7,11 +7,14 @@ import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
 
 
 export const registerSeller = async (req, res) => {
-  try {
-    const { firstName, lastName, username, email, password, address, license } = req.body;
+ try {
+    const { firstName, lastName, username, email, password, address } = req.body;
 
-    if (!firstName || !lastName || !username || !email || !password || !address || !license)
-      return res.status(400).json({ message: "All fields required" });
+    if (!req.file)
+      return res.status(400).json({ message: "License image required" });
+
+    const licenseUrl = req.file.path; // <-- Cloudinary URL
+    console.log("License URL:", licenseUrl);
 
     const existingSeller = await Seller.findOne({ where: { username } });
     if (existingSeller)
@@ -24,7 +27,7 @@ export const registerSeller = async (req, res) => {
       email,
       password,
       address,
-      license,
+      license: licenseUrl, // <-- Save Cloudinary URL
       emailVerified: false,
     });
 

@@ -19,6 +19,7 @@ const Buyer = sequelize.define(
     emailOtpHash: { type: DataTypes.STRING, allowNull: true },
     emailOtpExpiresAt: { type: DataTypes.DATE, allowNull: true },
     emailOtpAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    profilePic: { type: DataTypes.STRING, allowNull: true },
   },
   {
     tableName: "buyers",

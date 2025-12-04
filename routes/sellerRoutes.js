@@ -10,11 +10,14 @@ import {
   deleteSeller
 } from "../controllers/sellerController.js";
 import { requireAuth, requireAdmin } from "../middlewares/auth.js";
+import upload from "../config/upload.js";
 
 const router = express.Router();
 
 // Authentication routes
-router.post("/register", registerSeller);
+//router.post("/register", registerSeller);
+router.post("/register", upload.single("license"), registerSeller);
+
 //router.post("/login", loginSeller);
 //router.post("/verify-email", verifySellerEmail);
 //router.post("/resend-otp", resendSellerOtp);

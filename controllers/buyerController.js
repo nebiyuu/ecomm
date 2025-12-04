@@ -4,13 +4,18 @@ import jwt from "jsonwebtoken";
 import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
 
 export const registerBuyer = async (req, res) => {
-  const { firstName, lastName, username, email, phoneNumber, password } = req.body;
   try {
+      const { firstName, lastName, username, email, phoneNumber, password } = req.body;
+
+
+      const profilePic = req.file.path; // <-- Cloudinary URL
+      console.log("License URL:", profilePic);
+
 
     if (!firstName || !lastName || !username || !email || !phoneNumber || !password)
       return res.status(400).json({ message: "All fields required" });
 
-    const buyer = await Buyer.create({ firstName, lastName, username, email, phoneNumber, password, emailVerified: false });
+    const buyer = await Buyer.create({ firstName, lastName, username, email, phoneNumber, password, emailVerified: false, profilePic });
 
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const otpHash = await bcrypt.hash(otp, 10);
@@ -32,6 +37,7 @@ export const registerBuyer = async (req, res) => {
         email: buyer.email,
         phoneNumber: buyer.phoneNumber,
         emailVerified: buyer.emailVerified,
+        profilePic: buyer.profilePic,
       },
     });
   } catch (err) {
@@ -143,6 +149,7 @@ export const getBuyer = async (req, res) => {
         emailVerified: buyer.emailVerified,
         createdAt: buyer.createdAt,
         updatedAt: buyer.updatedAt,
+        profilePic: buyer.profilePic,
       },
     });
   } catch (err) {
@@ -157,7 +164,7 @@ export const updateBuyer = async (req, res) => {
     const buyer = await Buyer.findByPk(id);
     if (!buyer) return res.status(404).json({ message: "Buyer not found" });
 
-    const allowed = ["firstName", "lastName", "username", "email", "phoneNumber", "password"];
+    const allowed = ["firstName", "lastName", "username", "email", "phoneNumber", "password", "profilePic"];
     for (const key of allowed) {
       if (Object.prototype.hasOwnProperty.call(req.body, key)) {
         buyer[key] = req.body[key];
@@ -178,6 +185,7 @@ export const updateBuyer = async (req, res) => {
         emailVerified: buyer.emailVerified,
         createdAt: buyer.createdAt,
         updatedAt: buyer.updatedAt,
+        profilePic: buyer.profilePic,
       },
     });
   } catch (err) {
@@ -226,6 +234,7 @@ export const listBuyers = async (req, res) => {
         "emailVerified",
         "createdAt",
         "updatedAt",
+        "profilePic"
       ],
     });
 
