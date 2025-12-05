@@ -2,7 +2,7 @@ import { DataTypes } from "sequelize";
 import sequelize from "./index.js";
 
 const Product = sequelize.define("Product", {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    id: { type: DataTypes.UUID, primaryKey: true, allowNull: false },
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: false },
   category: { type: DataTypes.STRING, allowNull: false },
@@ -24,7 +24,7 @@ const Product = sequelize.define("Product", {
     defaultValue: []
   },
   ownerId: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'users',

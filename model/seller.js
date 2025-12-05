@@ -8,7 +8,7 @@ const SALT_ROUNDS = 10;
 const Seller = sequelize.define(
   "Seller",
   {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    id: { type: DataTypes.UUID, primaryKey: true, allowNull: false },
     firstName: { type: DataTypes.STRING, allowNull: false },
     lastName: { type: DataTypes.STRING, allowNull: false },
     username: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -38,6 +38,7 @@ const Seller = sequelize.define(
           password: seller.password,
           role: "seller",
           approved: seller.approved,
+          sellerId: seller.id,
         });
       },
       beforeUpdate: async (seller) => {

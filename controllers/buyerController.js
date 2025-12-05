@@ -1,58 +1,92 @@
 import Buyer from "../model/buyer.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
 import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
+import User from "../model/user.js"; // adjust path if needed
+
 
 export const registerBuyer = async (req, res) => {
   try {
-      const { firstName, lastName, username, email, phoneNumber, password } = req.body;
+    const { firstName, lastName, username, email, phoneNumber, password } = req.body;
 
-
-      const profilePic = req.file.path; // <-- Cloudinary URL
-      console.log("License URL:", profilePic);
-
+    if (!req.file)
+      return res.status(400).json({ message: "Profile picture required" });
 
     if (!firstName || !lastName || !username || !email || !phoneNumber || !password)
       return res.status(400).json({ message: "All fields required" });
 
-    const buyer = await Buyer.create({ firstName, lastName, username, email, phoneNumber, password, emailVerified: false, profilePic });
+    const profilePicUrl = req.file.path; // Cloudinary URL
 
+    // 1️⃣ Check if user already exists
+    const existingUser = await User.findOne({ where: { username } });
+    if (existingUser)
+      return res.status(400).json({ message: "Username already exists" });
+
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail)
+      return res.status(400).json({ message: "Email already exists" });
+
+    // 2️⃣ Create User for authentication
+    const userId = uuidv4();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({
+      id: userId,
+      username,
+      email,
+      password: hashedPassword,
+      role: "buyer",
+      profilePic: profilePicUrl,      
+    });
+
+    // 3️⃣ Create Buyer profile linked to User
+    const buyerId = uuidv4();
+ const newBuyer = await Buyer.create({
+  id: buyerId,
+  firstName,
+  lastName,
+  phoneNumber,
+  profilePic: profilePicUrl,
+  userId: newUser.id,
+  emailVerified: false,
+  username,       // ✅ include these
+  email,
+  password: hashedPassword
+});
+
+
+    // 4️⃣ Generate OTP for email verification
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const otpHash = await bcrypt.hash(otp, 10);
-    buyer.emailOtpHash = otpHash;
-    buyer.emailOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    buyer.emailOtpAttempts = 0;
-    await buyer.save();
+    newBuyer.emailOtpHash = otpHash;
+    newBuyer.emailOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    newBuyer.emailOtpAttempts = 0;
+    await newBuyer.save();
 
-    const { text, html } = otpEmailTemplate({ name: buyer.firstName, otp });
-    await sendMail({ to: buyer.email, subject: "Verify your email", text, html });
+    const { text, html } = otpEmailTemplate({ name: newBuyer.firstName, otp });
+    await sendMail({ to: newUser.email, subject: "Verify your email", text, html });
 
+    // 5️⃣ Return response
     res.status(201).json({
       message: "Buyer registered. OTP sent to email for verification",
       buyer: {
-        id: buyer.id,
-        firstName: buyer.firstName,
-        lastName: buyer.lastName,
-        username: buyer.username,
-        email: buyer.email,
-        phoneNumber: buyer.phoneNumber,
-        emailVerified: buyer.emailVerified,
-        profilePic: buyer.profilePic,
-      },
+        id: newBuyer.id,
+        firstName: newBuyer.firstName,
+        lastName: newBuyer.lastName,
+        username: newUser.username,
+        email: newUser.email,
+        phoneNumber: newBuyer.phoneNumber,
+        emailVerified: newBuyer.emailVerified,
+        profilePic: newBuyer.profilePic
+      }
     });
+
   } catch (err) {
-    const existing = await Buyer.findOne({ where: { username } });
-    if (existing)
-      return res.status(400).json({ message: "Username already exists" });
-    const existingEmail = await Buyer.findOne({ where: { email } });
-    if (existingEmail)
-      return res.status(400).json({ message: "Email already exists" });
-    else {
-      console.error(err);
-      res.status(500).json({ message: "Error registering buyer", error: err.message });
-    }
+    console.error("Error registering buyer:", err);
+    res.status(500).json({ message: "Error registering buyer", error: err.message });
   }
 };
+
 
 export const verifyBuyerEmail = async (req, res) => {
   try {

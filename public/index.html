@@ -211,20 +211,23 @@
 
   <div class="endpoint">
     <div><span class="method">POST</span> <code>/api/buyers/register</code> <span class="pill auth">Public</span></div>
-    <div>Registers a buyer and sends OTP.</div>
-    <h4>Request body</h4>
-<pre>{
-  "firstName": "John",
-  "lastName": "Doe",
-  "username": "johnd",
-  "email": "john@example.com",
-  "phoneNumber": "+1000000000",
-  "password": "secret"
-}</pre>
+    <div>Registers a buyer with a profile picture and sends OTP.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Content-Type: <code>multipart/form-data</code></li>
+      <li>Form fields:</li>
+    </ul>
+<pre>firstName: "John"
+lastName: "Doe"
+username: "johnd"
+email: "john@example.com"
+phoneNumber: "+1000000000"
+password: "secret"
+profilePic: &lt;file&gt; // required image file field</pre>
     <h4>Responses</h4>
     <ul>
-      <li>201: <code>{ message, buyer: { id, firstName, lastName, username, email, phoneNumber, emailVerified } }</code></li>
-      <li>400: <code>All fields required | Username/Email already exists</code></li>
+      <li>201: <code>{ message, buyer: { id, firstName, lastName, username, email, phoneNumber, emailVerified, profilePic } }</code></li>
+      <li>400: <code>All fields required | Profile picture required | Username/Email already exists</code></li>
       <li>500: <code>Error registering buyer</code></li>
     </ul>
   </div>

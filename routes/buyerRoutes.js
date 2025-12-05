@@ -15,7 +15,7 @@ router.post("/register", upload.single("profilePic"), registerBuyer);
 // CRUD
 router.get("/", listBuyers);
 router.get("/:id", getBuyer);
-router.patch("/:id", requireAuth, requireSameBuyer, updateBuyer);
+router.patch("/:id", requireAuth, requireSameBuyer, upload.single("profilePic"), updateBuyer);
 router.delete("/:id", requireAuth, requireSameBuyer, deleteBuyer);
 
 

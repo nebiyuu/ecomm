@@ -1,9 +1,6 @@
 import express from "express";
 import { 
   registerSeller, 
-  loginSeller, 
-  verifySellerEmail, 
-  resendSellerOtp,
   getAllSellers,
   getSellerById,
   updateSeller,
@@ -16,7 +13,12 @@ const router = express.Router();
 
 // Authentication routes
 //router.post("/register", registerSeller);
-router.post("/register", upload.single("license"), registerSeller);
+router.post("/register",upload.fields([
+    { name: "license", maxCount: 1 },
+    { name: "profilePic", maxCount: 1 }
+  ]),
+  registerSeller
+);
 
 //router.post("/login", loginSeller);
 //router.post("/verify-email", verifySellerEmail);

@@ -8,7 +8,7 @@ const SALT_ROUNDS = 10;
 const Buyer = sequelize.define(
   "Buyer",
   {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    id: { type: DataTypes.UUID, primaryKey: true, allowNull: false },
     firstName: { type: DataTypes.STRING, allowNull: false },
     lastName: { type: DataTypes.STRING, allowNull: false },
     username: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -35,6 +35,8 @@ const Buyer = sequelize.define(
             email: buyer.email,
             password: buyer.password,
             role: "buyer",
+            profilePic: buyer.profilePic,
+            buyerId: buyer.id,
           });
         }
       },
@@ -55,6 +57,8 @@ const Buyer = sequelize.define(
                 email: buyer.email,
                 password: buyer.password,
                 role: "buyer",
+                profilePic: buyer.profilePic,
+                buyerId: buyer.id,
               });
             } catch (err) {
               if (err.name !== "SequelizeUniqueConstraintError") {

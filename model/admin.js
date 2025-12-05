@@ -4,8 +4,8 @@ import sequelize from "./index.js";
 const Admin = sequelize.define(
   "Admin",
   {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    userId: { type: DataTypes.INTEGER, allowNull: true, unique: true },
+    id: { type: DataTypes.UUID, primaryKey: true, allowNull: false },
+    userId: { type: DataTypes.INTEGER, allowNull: false, unique: true },
   },
   {
     tableName: "admins",
