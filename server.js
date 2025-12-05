@@ -17,6 +17,8 @@ app.use("/api/sellers", sellerRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
+app.get("/health", (req, res) => res.send("ok"));
+
 
 
 

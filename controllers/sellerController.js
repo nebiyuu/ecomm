@@ -8,20 +8,21 @@ import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
 
 
 export const registerSeller = async (req, res) => {
-  
-  const { firstName, lastName, username, email, password, address } = req.body;
+  const { firstName, lastName, username, email, password, address, phoneNumber, storeName } = req.body;
 
   try {
+    console.log("req.body:", req.body);
+console.log("req.files:", req.files);
 
-    if (!req.file)
+
+    if (!req.files || !req.files.license)
       return res.status(400).json({ message: "License image required" });
 
-    if (!req.file2)
+    if (!req.files || !req.files.profilePic)
       return res.status(400).json({ message: "Profile image required" });
 
-    const licenseUrl = req.file.path;
-
-    console.log("License URL:", licenseUrl);
+    const licenseUrl = req.files.license[0].path;
+    const profilePicUrl = req.files.profilePic[0].path;
 
     // Check if username/email already exists in Users
     const existingUser = await User.findOne({ where: { username } });
@@ -37,7 +38,7 @@ export const registerSeller = async (req, res) => {
       email,
       password: hashedPassword,
       role: "seller",
-      profilePic: req.file2.path,
+      profilePic: profilePicUrl,
     });
 
     // 2️⃣ Create Seller profile linked to User
@@ -46,10 +47,17 @@ export const registerSeller = async (req, res) => {
       id: sellerId,
       firstName,
       lastName,
+      phoneNumber,
+      storeName,
+      username,
+      email,
+      password: hashedPassword,
       address,
       license: licenseUrl,
+      role: "seller",
       userId: newUser.id, // Link to User
       emailVerified: false,
+      profilePic: profilePicUrl,
     });
 
     // 3️⃣ Generate OTP
@@ -69,12 +77,15 @@ export const registerSeller = async (req, res) => {
         id: newSeller.id,
         firstName: newSeller.firstName,
         lastName: newSeller.lastName,
+        phoneNumber: newSeller.phoneNumber,
+        storeName: newSeller.storeName,
         username: newUser.username,
         email: newUser.email,
         address: newSeller.address,
         approved: newSeller.approved,
         emailVerified: newSeller.emailVerified,
         profilePic: newUser.profilePic,
+        license: licenseUrl,
       },
     });
   } catch (error) {
