@@ -253,21 +253,26 @@ profilePic: &lt;file&gt; // required image file field</pre>
 
   <div class="endpoint">
     <div><span class="method">POST</span> <code>/api/sellers/register</code> <span class="pill auth">Public</span></div>
-    <div>Registers a seller and sends OTP. Login requires emailVerified=true and approved=true.</div>
-    <h4>Request body</h4>
-<pre>{
-  "firstName": "Acme",
-  "lastName": "Corp",
-  "username": "acme",
-  "email": "acme@example.com",
-  "password": "secret",
-  "address": "123 Main St",
-  "license": "LIC-12345"
-}</pre>
+    <div>Registers a seller with license and profile picture uploads, then sends OTP. Login requires <code>emailVerified=true</code> and <code>approved=true</code>.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Content-Type: <code>multipart/form-data</code></li>
+      <li>Form fields:</li>
+    </ul>
+<pre>firstName: "Acme"
+lastName: "Corp"
+username: "acme"
+email: "acme@example.com"
+password: "secret"
+address: "123 Main St"
+phoneNumber: "+1000000000"   // optional
+storeName: "Acme Store"      // optional
+license: &lt;file&gt;             // required image file field
+profilePic: &lt;file&gt;          // required image file field</pre>
     <h4>Responses</h4>
     <ul>
-      <li>201: <code>{ message, seller: { id, firstName, lastName, username, email, address, approved, emailVerified } }</code></li>
-      <li>400: <code>All fields required | Username already taken</code></li>
+      <li>201: <code>{ message, seller: { id, firstName, lastName, phoneNumber, storeName, username, email, address, approved, emailVerified, profilePic, license } }</code></li>
+      <li>400: <code>License image required | Profile image required | Username already taken</code></li>
       <li>500: <code>Error registering seller</code></li>
     </ul>
   </div>
@@ -298,7 +303,7 @@ profilePic: &lt;file&gt; // required image file field</pre>
     </ul>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ "message": "Seller retrieved successfully", "seller": {...} }</code></li>
+      <li>200: <code>{ "message": "Seller retrieved successfully", "seller": { id, firstName, lastName, phoneNumber, storeName, username, email, address, license, approved, emailVerified, profilePic } }</code></li>
       <li>401: <code>{ "message": "Unauthorized" }</code></li>
       <li>404: <code>{ "message": "Seller not found" }</code></li>
       <li>500: <code>{ "message": "Error retrieving seller", "error": "..." }</code></li>
@@ -324,7 +329,7 @@ profilePic: &lt;file&gt; // required image file field</pre>
 }</pre>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ "message": "Seller updated successfully", "seller": {...} }</code></li>
+      <li>200: <code>{ "message": "Seller updated successfully", "seller": { id, firstName, lastName, phoneNumber, storeName, username, email, address, license, approved, emailVerified, profilePic } }</code></li>
       <li>401: <code>{ "message": "Unauthorized" }</code></li>
       <li>404: <code>{ "message": "Seller not found" }</code></li>
       <li>500: <code>{ "message": "Error updating seller", "error": "..." }</code></li>
