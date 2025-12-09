@@ -85,7 +85,16 @@ const createProduct = async (req, res) => {
   }
 
   try {
-    const { name, description, category, condition, price, images } = req.body;
+    const { name, description, category, condition, price } = req.body;
+
+    // If files were uploaded, map their Cloudinary URLs into the images array
+    let images = [];
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      images = req.files.map((file) => file.path);
+    } else if (req.body.images) {
+      // Fallback: allow images to be passed as JSON array in body (for backward compatibility)
+      images = Array.isArray(req.body.images) ? req.body.images : [];
+    }
     
     // Admins can specify ownerId, sellers can only create for themselves
     const ownerId = req.user.role === 'admin' && req.body.ownerId 
@@ -107,7 +116,7 @@ const createProduct = async (req, res) => {
       category,
       condition: condition || 'new',
       price: parseFloat(price),
-      images: images || [],
+      images,
       ownerId
     });
 
@@ -137,7 +146,7 @@ const updateProduct = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { name, description, category, condition, price, images } = req.body;
+    const { name, description, category, condition, price } = req.body;
 
     const product = await Product.findByPk(id, {
       paranoid: false
@@ -163,13 +172,21 @@ const updateProduct = async (req, res) => {
       await product.restore();
     }
 
+    // Determine images for update: use uploaded files if provided; otherwise fall back to body or existing
+    let images = product.images;
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      images = req.files.map((file) => file.path);
+    } else if (req.body.images) {
+      images = Array.isArray(req.body.images) ? req.body.images : product.images;
+    }
+
     const updated = await product.update({
       name: name || product.name,
       description: description || product.description,
       category: category || product.category,
       condition: condition || product.condition,
       price: price ? parseFloat(price) : product.price,
-      images: images || product.images
+      images
     });
 
     return res.status(200).json({

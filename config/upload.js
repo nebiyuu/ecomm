@@ -10,5 +10,16 @@ const profileStorage = new CloudinaryStorage({
   },
 });
 
+// Separate storage for product images
+const productStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "products",
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+  },
+});
+
 const uploadProfile = multer({ storage: profileStorage });
-export default uploadProfile;
+const uploadProduct = multer({ storage: productStorage });
+
+export { uploadProfile, uploadProduct };

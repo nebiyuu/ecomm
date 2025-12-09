@@ -7,8 +7,7 @@ import {
   deleteSeller
 } from "../controllers/sellerController.js";
 import { requireAuth, requireAdmin } from "../middlewares/auth.js";
-import upload from "../config/upload.js";
-
+import { uploadProfile as upload } from "../config/upload.js";
 const router = express.Router();
 
 // Authentication routes

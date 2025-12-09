@@ -5,6 +5,7 @@ import {
   createProductValidation, 
   updateProductValidation 
 } from "../middlewares/validators/productValidator.js";
+import { uploadProduct } from "../config/upload.js";
 
 const router = Router();
 
@@ -15,7 +16,8 @@ router.get("/:id", productController.getProduct);
 // Protected routes (require authentication)
 router.post(
   "/", 
-  requireAuth, 
+  requireAuth,
+  uploadProduct.array("images", 10),
   createProductValidation, 
   productController.createProduct
 );
@@ -23,6 +25,7 @@ router.post(
 router.put(
   "/:id",
   requireAuth,
+  uploadProduct.array("images", 10),
   updateProductValidation,
   productController.updateProduct
 );
