@@ -102,11 +102,22 @@
 
   <div class="endpoint">
     <div><span class="method">GET</span> <code>/api/products</code> <span class="pill auth">Public</span></div>
-    <div>Lists all products. Admins can see soft-deleted products as well.</div>
+    <div>Lists all products. Supports filtering by category. Admins can see soft-deleted products as well.</div>
     <h4>Request</h4>
     <ul>
       <li>No authentication required for basic listing</li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>category</code> — Filter products by category (e.g., <code>?category=Mobile Phones & Tablets</code>)</li>
+        </ul>
+      </li>
       <li>Admins can include deleted products in results</li>
+    </ul>
+    <h4>Examples</h4>
+    <ul>
+      <li><code>GET /api/products</code> — Get all products</li>
+      <li><code>GET /api/products?category=Mobile Phones & Tablets</code> — Get only Mobile Phones & Tablets</li>
+      <li><code>GET /api/products?category=Computers & Laptops</code> — Get only Computers & Laptops</li>
     </ul>
     <h4>Responses</h4>
     <ul>

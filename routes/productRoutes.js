@@ -11,6 +11,7 @@ const router = Router();
 
 // Public routes
 router.get("/", productController.listProducts);
+router.get("/category/:category", productController.listProductsByCategory);
 router.get("/:id", productController.getProduct);
 
 // Protected routes (require authentication)

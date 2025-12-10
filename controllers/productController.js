@@ -14,6 +14,12 @@ const checkProductAccess = (product, userId, role) => {
 const listProducts = async (req, res) => {
   try {
     const where = {};
+    
+    // Filter by category if provided in query params
+    if (req.query.category) {
+      where.category = req.query.category;
+    }
+    
     if (req.user?.role === 'admin') {
       // Admin can see all products including deleted ones
       Object.assign(where, {
@@ -41,6 +47,43 @@ const listProducts = async (req, res) => {
       success: false,
       message: "Error retrieving products",
       error: error.message
+    });
+  }
+};
+
+// List products by category
+const listProductsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+    const where = { category };
+
+    if (req.user?.role === 'admin') {
+      // Admin can see all products including deleted ones
+      Object.assign(where, {
+        [Op.or]: [
+          { deletedAt: null },
+          { deletedAt: { [Op.ne]: null } }
+        ]
+      });
+    }
+
+    const products = await Product.findAll({
+      where,
+      order: [["created_at", "DESC"]],
+      paranoid: !(req.user?.role === "admin"),
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: products.length,
+      data: products,
+    });
+  } catch (error) {
+    console.error("Error listing products by category:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving products by category",
+      error: error.message,
     });
   }
 };
@@ -261,6 +304,7 @@ const deleteProduct = async (req, res) => {
 
 export default {
   listProducts,
+  listProductsByCategory,
   getProduct,
   createProduct,
   updateProduct,
