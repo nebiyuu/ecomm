@@ -2,6 +2,7 @@ import { validationResult } from "express-validator";
 import { Op } from "sequelize";
 import Product from "../model/product.js";
 import User from "../model/user.js";
+import TrailPolicy from "../model/trailPolicies.js";
 
 // Helper function to check product access
 const checkProductAccess = (product, userId, role) => {
@@ -51,42 +52,6 @@ const listProducts = async (req, res) => {
   }
 };
 
-// List products by category
-const listProductsByCategory = async (req, res) => {
-  try {
-    const { category } = req.params;
-    const where = { category };
-
-    if (req.user?.role === 'admin') {
-      // Admin can see all products including deleted ones
-      Object.assign(where, {
-        [Op.or]: [
-          { deletedAt: null },
-          { deletedAt: { [Op.ne]: null } }
-        ]
-      });
-    }
-
-    const products = await Product.findAll({
-      where,
-      order: [["created_at", "DESC"]],
-      paranoid: !(req.user?.role === "admin"),
-    });
-
-    return res.status(200).json({
-      success: true,
-      count: products.length,
-      data: products,
-    });
-  } catch (error) {
-    console.error("Error listing products by category:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving products by category",
-      error: error.message,
-    });
-  }
-};
 
 // Get single product
 const getProduct = async (req, res) => {
@@ -128,7 +93,7 @@ const createProduct = async (req, res) => {
   }
 
   try {
-    const { name, description, category, condition, price } = req.body;
+    const { name, description, category, condition, price, trialPolicy } = req.body;
 
     // If files were uploaded, map their Cloudinary URLs into the images array
     let images = [];
@@ -162,6 +127,61 @@ const createProduct = async (req, res) => {
       images,
       ownerId
     });
+
+    // Create trial policy if provided
+    if (trialPolicy) {
+      // Parse trial policy from JSON string if needed
+      let parsedTrialPolicy;
+      try {
+        parsedTrialPolicy = typeof trialPolicy === 'string' 
+          ? JSON.parse(trialPolicy) 
+          : trialPolicy;
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid trial policy JSON format'
+        });
+      }
+      
+      // Validate trial policy fields
+      const { trialDays, penaltyType, penaltyValue, returnWindowHours } = parsedTrialPolicy;
+      
+      if (!trialDays || !penaltyValue || !returnWindowHours) {
+        return res.status(400).json({
+          success: false,
+          message: 'Trial policy must include trialDays, penaltyType, penaltyValue, and returnWindowHours'
+        });
+      }
+      
+      if (isNaN(trialDays) || trialDays <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'trialDays must be a positive number'
+        });
+      }
+      
+      if (isNaN(penaltyValue) || penaltyValue < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'penaltyValue must be a non-negative number'
+        });
+      }
+      
+      if (isNaN(returnWindowHours) || returnWindowHours <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'returnWindowHours must be a positive number'
+        });
+      }
+      
+      await TrailPolicy.create({
+        product_id: product.id,
+        trial_days: parseInt(trialDays),
+        penalty_type: penaltyType,
+        penalty_value: parseFloat(penaltyValue),
+        return_window_hours: parseInt(returnWindowHours)
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -304,7 +324,6 @@ const deleteProduct = async (req, res) => {
 
 export default {
   listProducts,
-  listProductsByCategory,
   getProduct,
   createProduct,
   updateProduct,
