@@ -156,7 +156,13 @@
   "condition": "string (optional, enum: ['new', 'used', 'refurbished'], default: 'new')",
   "price": "number (required, > 0)",
   "images": "string[] (optional, array of image URLs)",
-  "ownerId": "number (optional, admin only - for assigning product to specific seller)"
+  "ownerId": "number (optional, admin only - for assigning product to specific seller)",
+  "trialPolicy": {                      // optional trial policy configuration
+    "trialDays": "number (> 0)",      // length of trial in days
+    "penaltyType": "string",          // e.g. 'flat' or 'percentage'
+    "penaltyValue": "number (>= 0)",  // penalty amount
+    "returnWindowHours": "number (> 0)" // allowed return window in hours
+  }
 }</pre>
       </li>
     </ul>
@@ -185,13 +191,19 @@
   "condition": "string (enum: ['new', 'used', 'refurbished'])",
   "price": "number (> 0)",
   "images": "string[] (array of image URLs)",
-  "ownerId": "number (admin only - for transferring product ownership)"
+  "ownerId": "number (admin only - for transferring product ownership)",
+  "trialPolicy": {                      // optional create/update of trial policy
+    "trialDays": "number (> 0)",
+    "penaltyType": "string",
+    "penaltyValue": "number (>= 0)",
+    "returnWindowHours": "number (> 0)"
+  }
 }</pre>
       </li>
     </ul>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ "success": true, "data": UpdatedProduct }</code></li>
+      <li>200: <code>{ "success": true, "data": { product: UpdatedProduct, trialPolicy: TrialPolicy | null } }</code></li>
       <li>400: <code>{ "success": false, "message": "Validation error", "errors": [...] }</code></li>
       <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
       <li>403: <code>{ "success": false, "message": "Not authorized to update this product" }</code></li>

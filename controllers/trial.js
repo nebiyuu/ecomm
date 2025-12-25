@@ -2,137 +2,147 @@ import TrailPolicy from "../model/trailPolicies.js";
 import Product from "../model/product.js";
 import { validationResult } from "express-validator";
 
-const trialController = {
-  // Create trial policy for a product
-  async createTrialPolicy(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+// Helper function to validate request
+const validateRequest = (req) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return { success: false, errors: errors.array() };
+  }
+  return { success: true };
+};
 
-      const { id } = req.params;
-      const { trial_days, penalty_value, return_window_hours } = req.body;
+// Helper function to check if product exists
+const checkProductExists = async (productId) => {
+  const product = await Product.findByPk(productId);
+  if (!product) {
+    return { success: false, error: "Product not found" };
+  }
+  return { success: true, product };
+};
 
-      // Check if product exists
-      const product = await Product.findByPk(id);
-      if (!product) {
-        return res.status(404).json({ error: "Product not found" });
-      }
+// Helper function to find active trial policy
+const findActiveTrialPolicy = async (productId) => {
+  const trialPolicy = await TrailPolicy.findOne({
+    where: { product_id: productId, active: true }
+  });
+  return trialPolicy;
+};
 
-      // Check if trial policy already exists for this product
-      const existingPolicy = await TrailPolicy.findOne({
-        where: { product_id: id, active: true }
-      });
-
-      if (existingPolicy) {
-        return res.status(400).json({ error: "Trial policy already exists for this product" });
-      }
-
-      // Create new trial policy
-      const trialPolicy = await TrailPolicy.create({
-        product_id: id,
-        trial_days,
-        penalty_value,
-        return_window_hours,
-        active: true
-      });
-
-      res.status(201).json({
-        message: "Trial policy created successfully",
-        trialPolicy
-      });
-    } catch (error) {
-      console.error("Error creating trial policy:", error);
-      res.status(500).json({ error: "Internal server error" });
+// Create trial policy for a product
+export const createTrialPolicy = async (req, res) => {
+  try {
+    const validation = validateRequest(req);
+    if (!validation.success) {
+      return res.status(400).json({ errors: validation.errors });
     }
-  },
 
-  // Update existing trial policy
-  async updateTrialPolicy(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+    const { id } = req.params;
+    const { trial_days, penalty_value, return_window_hours } = req.body;
 
-      const { id } = req.params;
-      const { trial_days, penalty_value, return_window_hours } = req.body;
-
-      // Find existing trial policy
-      const trialPolicy = await TrailPolicy.findOne({
-        where: { product_id: id, active: true }
-      });
-
-      if (!trialPolicy) {
-        return res.status(404).json({ error: "Trial policy not found for this product" });
-      }
-
-      // Update trial policy
-      await trialPolicy.update({
-        trial_days: trial_days || trialPolicy.trial_days,
-        penalty_value: penalty_value || trialPolicy.penalty_value,
-        return_window_hours: return_window_hours || trialPolicy.return_window_hours
-      });
-
-      res.status(200).json({
-        message: "Trial policy updated successfully",
-        trialPolicy
-      });
-    } catch (error) {
-      console.error("Error updating trial policy:", error);
-      res.status(500).json({ error: "Internal server error" });
+    // Check if product exists
+    const productCheck = await checkProductExists(id);
+    if (!productCheck.success) {
+      return res.status(404).json({ error: productCheck.error });
     }
-  },
 
-  // Soft delete/disable trial policy
-  async deleteTrialPolicy(req, res) {
-    try {
-      const { id } = req.params;
-
-      // Find existing trial policy
-      const trialPolicy = await TrailPolicy.findOne({
-        where: { product_id: id, active: true }
-      });
-
-      if (!trialPolicy) {
-        return res.status(404).json({ error: "Trial policy not found for this product" });
-      }
-
-      // Soft delete by setting active to false
-      await trialPolicy.update({ active: false });
-
-      res.status(200).json({
-        message: "Trial policy disabled successfully"
-      });
-    } catch (error) {
-      console.error("Error deleting trial policy:", error);
-      res.status(500).json({ error: "Internal server error" });
+    // Check if trial policy already exists for this product
+    const existingPolicy = await findActiveTrialPolicy(id);
+    if (existingPolicy) {
+      return res.status(400).json({ error: "Trial policy already exists for this product" });
     }
-  },
 
-  // Get trial policy for a product
-  async getTrialPolicy(req, res) {
-    try {
-      const { id } = req.params;
+    // Create new trial policy
+    const trialPolicy = await TrailPolicy.create({
+      product_id: id,
+      trial_days,
+      penalty_value,
+      return_window_hours,
+      active: true
+    });
 
-      // Find active trial policy
-      const trialPolicy = await TrailPolicy.findOne({
-        where: { product_id: id, active: true }
-      });
-
-      if (!trialPolicy) {
-        return res.status(404).json({ error: "Trial policy not found for this product" });
-      }
-
-      res.status(200).json({
-        trialPolicy
-      });
-    } catch (error) {
-      console.error("Error getting trial policy:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
+    res.status(201).json({
+      message: "Trial policy created successfully",
+      trialPolicy
+    });
+  } catch (error) {
+    console.error("Error creating trial policy:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
-export default trialController;
+// Update existing trial policy
+export const updateTrialPolicy = async (req, res) => {
+  try {
+    const validation = validateRequest(req);
+    if (!validation.success) {
+      return res.status(400).json({ errors: validation.errors });
+    }
+
+    const { id } = req.params;
+    const { trial_days, penalty_value, return_window_hours } = req.body;
+
+    // Find existing trial policy
+    const trialPolicy = await findActiveTrialPolicy(id);
+    if (!trialPolicy) {
+      return res.status(404).json({ error: "Trial policy not found for this product" });
+    }
+
+    // Update trial policy
+    await trialPolicy.update({
+      trial_days: trial_days || trialPolicy.trial_days,
+      penalty_value: penalty_value || trialPolicy.penalty_value,
+      return_window_hours: return_window_hours || trialPolicy.return_window_hours
+    });
+
+    res.status(200).json({
+      message: "Trial policy updated successfully",
+      trialPolicy
+    });
+  } catch (error) {
+    console.error("Error updating trial policy:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Soft delete/disable trial policy
+export const deleteTrialPolicy = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find existing trial policy
+    const trialPolicy = await findActiveTrialPolicy(id);
+    if (!trialPolicy) {
+      return res.status(404).json({ error: "Trial policy not found for this product" });
+    }
+
+    // Soft delete by setting active to false
+    await trialPolicy.update({ active: false });
+
+    res.status(200).json({
+      message: "Trial policy disabled successfully"
+    });
+  } catch (error) {
+    console.error("Error deleting trial policy:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Get trial policy for a product
+export const getTrialPolicy = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find active trial policy
+    const trialPolicy = await findActiveTrialPolicy(id);
+    if (!trialPolicy) {
+      return res.status(404).json({ error: "Trial policy not found for this product" });
+    }
+
+    res.status(200).json({
+      trialPolicy
+    });
+  } catch (error) {
+    console.error("Error getting trial policy:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
