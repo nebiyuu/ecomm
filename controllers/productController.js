@@ -2,12 +2,82 @@ import { validationResult } from "express-validator";
 import { Op } from "sequelize";
 import Product from "../model/product.js";
 import User from "../model/user.js";
+import TrailPolicy from "../model/trailPolicies.js";
 
 // Helper function to check product access
 const checkProductAccess = (product, userId, role) => {
   if (role === 'admin') return true;
   if (role === 'seller' && product.ownerId === userId) return true;
   return false;
+};
+
+// Helper to get active trial policy for a product
+const getActiveTrialPolicyForProduct = async (productId) => {
+  return TrailPolicy.findOne({
+    where: { product_id: productId, active: true }
+  });
+};
+
+// Helper to create or update trial policy from payload
+const upsertTrialPolicyForProduct = async (productId, trialPolicyPayload) => {
+  if (!trialPolicyPayload) return;
+
+  let parsedTrialPolicy;
+  try {
+    parsedTrialPolicy = typeof trialPolicyPayload === 'string'
+      ? JSON.parse(trialPolicyPayload)
+      : trialPolicyPayload;
+  } catch (error) {
+    const err = new Error('Invalid trial policy JSON format');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const { trialDays, penaltyType, penaltyValue, returnWindowHours } = parsedTrialPolicy;
+
+  if (!trialDays || !penaltyValue || !returnWindowHours) {
+    const err = new Error('Trial policy must include trialDays, penaltyType, penaltyValue, and returnWindowHours');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (isNaN(trialDays) || trialDays <= 0) {
+    const err = new Error('trialDays must be a positive number');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (isNaN(penaltyValue) || penaltyValue < 0) {
+    const err = new Error('penaltyValue must be a non-negative number');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (isNaN(returnWindowHours) || returnWindowHours <= 0) {
+    const err = new Error('returnWindowHours must be a positive number');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const existingPolicy = await getActiveTrialPolicyForProduct(productId);
+
+  if (existingPolicy) {
+    await existingPolicy.update({
+      trial_days: parseInt(trialDays),
+      penalty_type: penaltyType,
+      penalty_value: parseFloat(penaltyValue),
+      return_window_hours: parseInt(returnWindowHours)
+    });
+  } else {
+    await TrailPolicy.create({
+      product_id: productId,
+      trial_days: parseInt(trialDays),
+      penalty_type: penaltyType,
+      penalty_value: parseFloat(penaltyValue),
+      return_window_hours: parseInt(returnWindowHours),
+      active: true
+    });
+  }
 };
 
 // List all products
@@ -51,42 +121,6 @@ const listProducts = async (req, res) => {
   }
 };
 
-// List products by category
-const listProductsByCategory = async (req, res) => {
-  try {
-    const { category } = req.params;
-    const where = { category };
-
-    if (req.user?.role === 'admin') {
-      // Admin can see all products including deleted ones
-      Object.assign(where, {
-        [Op.or]: [
-          { deletedAt: null },
-          { deletedAt: { [Op.ne]: null } }
-        ]
-      });
-    }
-
-    const products = await Product.findAll({
-      where,
-      order: [["created_at", "DESC"]],
-      paranoid: !(req.user?.role === "admin"),
-    });
-
-    return res.status(200).json({
-      success: true,
-      count: products.length,
-      data: products,
-    });
-  } catch (error) {
-    console.error("Error listing products by category:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving products by category",
-      error: error.message,
-    });
-  }
-};
 
 // Get single product
 const getProduct = async (req, res) => {
@@ -103,9 +137,14 @@ const getProduct = async (req, res) => {
       });
     }
 
+    const trialPolicy = await getActiveTrialPolicyForProduct(id);
+
     return res.status(200).json({
       success: true,
-      data: product
+      data: {
+        product,
+        trialPolicy
+      }
     });
   } catch (error) {
     console.error('Error getting product:', error);
@@ -128,7 +167,7 @@ const createProduct = async (req, res) => {
   }
 
   try {
-    const { name, description, category, condition, price } = req.body;
+    const { name, description, category, condition, price, trialPolicy } = req.body;
 
     // If files were uploaded, map their Cloudinary URLs into the images array
     let images = [];
@@ -163,6 +202,61 @@ const createProduct = async (req, res) => {
       ownerId
     });
 
+    // Create trial policy if provided
+    if (trialPolicy) {
+      // Parse trial policy from JSON string if needed
+      let parsedTrialPolicy;
+      try {
+        parsedTrialPolicy = typeof trialPolicy === 'string' 
+          ? JSON.parse(trialPolicy) 
+          : trialPolicy;
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid trial policy JSON format'
+        });
+      }
+      
+      // Validate trial policy fields
+      const { trialDays, penaltyType, penaltyValue, returnWindowHours } = parsedTrialPolicy;
+      
+      if (!trialDays || !penaltyValue || !returnWindowHours) {
+        return res.status(400).json({
+          success: false,
+          message: 'Trial policy must include trialDays, penaltyType, penaltyValue, and returnWindowHours'
+        });
+      }
+      
+      if (isNaN(trialDays) || trialDays <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'trialDays must be a positive number'
+        });
+      }
+      
+      if (isNaN(penaltyValue) || penaltyValue < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'penaltyValue must be a non-negative number'
+        });
+      }
+      
+      if (isNaN(returnWindowHours) || returnWindowHours <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'returnWindowHours must be a positive number'
+        });
+      }
+      
+      await TrailPolicy.create({
+        product_id: product.id,
+        trial_days: parseInt(trialDays),
+        penalty_type: penaltyType,
+        penalty_value: parseFloat(penaltyValue),
+        return_window_hours: parseInt(returnWindowHours)
+      });
+    }
+
     return res.status(201).json({
       success: true,
       data: product
@@ -189,7 +283,7 @@ const updateProduct = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { name, description, category, condition, price } = req.body;
+    const { name, description, category, condition, price, trialPolicy } = req.body;
 
     const product = await Product.findByPk(id, {
       paranoid: false
@@ -211,9 +305,9 @@ const updateProduct = async (req, res) => {
     }
 
     // If product was soft-deleted and we're updating, restore it
-    if (product.deletedAt) {
-      await product.restore();
-    }
+    // if (product.deletedAt) {
+    //   await product.restore();
+    // }
 
     // Determine images for update: use uploaded files if provided; otherwise fall back to body or existing
     let images = product.images;
@@ -231,10 +325,28 @@ const updateProduct = async (req, res) => {
       price: price ? parseFloat(price) : product.price,
       images
     });
+    
+    // Optionally create or update trial policy
+    if (trialPolicy) {
+      try {
+        await upsertTrialPolicyForProduct(id, trialPolicy);
+      } catch (tpError) {
+        const status = tpError.statusCode || 400;
+        return res.status(status).json({
+          success: false,
+          message: tpError.message
+        });
+      }
+    }
+
+    const activeTrialPolicy = await getActiveTrialPolicyForProduct(id);
 
     return res.status(200).json({
       success: true,
-      data: updated
+      data: {
+        product: updated,
+        trialPolicy: activeTrialPolicy
+      }
     });
   } catch (error) {
     console.error('Error updating product:', error);
@@ -274,6 +386,13 @@ const deleteProduct = async (req, res) => {
       // If already soft-deleted, perform hard delete for admin
       if (req.user.role === 'admin') {
         await product.destroy({ force: true });
+
+        // Disable any active trial policy for this product
+        const existingPolicy = await getActiveTrialPolicyForProduct(id);
+        if (existingPolicy) {
+          await existingPolicy.update({ active: false });
+        }
+
         return res.status(200).json({
           success: true,
           message: 'Product permanently deleted'
@@ -287,6 +406,12 @@ const deleteProduct = async (req, res) => {
 
     // Soft delete
     await product.destroy();
+
+    // Disable any active trial policy for this product
+    const existingPolicy = await getActiveTrialPolicyForProduct(id);
+    if (existingPolicy) {
+      await existingPolicy.update({ active: false });
+    }
 
     return res.status(200).json({
       success: true,
@@ -304,7 +429,6 @@ const deleteProduct = async (req, res) => {
 
 export default {
   listProducts,
-  listProductsByCategory,
   getProduct,
   createProduct,
   updateProduct,

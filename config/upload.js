@@ -2,6 +2,8 @@ import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from "./cloudinary.js";
 
+
+//profile related images like license and profile pci
 const profileStorage = new CloudinaryStorage({
   cloudinary,
   params: {
@@ -10,7 +12,7 @@ const profileStorage = new CloudinaryStorage({
   },
 });
 
-// Separate storage for product images
+// storage for product images
 const productStorage = new CloudinaryStorage({
   cloudinary,
   params: {
