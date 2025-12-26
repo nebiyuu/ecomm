@@ -25,4 +25,4 @@ jobs:
       - name: Quick run check
         run: |
           # Try to start the app and immediately exit
-          node -e "require('./index.js'); console.log('Node app ran successfully');"
+          node -e "require('./server.js'); console.log('Node app ran successfully');"
