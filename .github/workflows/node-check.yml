@@ -20,7 +20,7 @@ jobs:
           node-version: '20'  # your Node version
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Quick run check
         run: |
