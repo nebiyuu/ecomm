@@ -14,7 +14,7 @@ const checkProductAccess = (product, userId, role) => {
 // Helper to get active trial policy for a product
 const getActiveTrialPolicyForProduct = async (productId) => {
   return TrailPolicy.findOne({
-    where: { product_id: productId, active: true }
+    where: { product_id: productId}
   });
 };
 
@@ -106,10 +106,21 @@ const listProducts = async (req, res) => {
       paranoid: !(req.user?.role === 'admin')
     });
     
+    // Get trial policies for all products
+    const productsWithTrialPolicies = await Promise.all(
+      products.map(async (product) => {
+        const trialPolicy = await getActiveTrialPolicyForProduct(product.id);
+        return {
+          ...product.toJSON(),
+          trialPolicy
+        };
+      })
+    );
+    
     return res.status(200).json({
       success: true,
       count: products.length,
-      data: products
+      data: productsWithTrialPolicies
     });
   } catch (error) {
     console.error("Error listing products:", error);
@@ -139,10 +150,11 @@ const getProduct = async (req, res) => {
 
     const trialPolicy = await getActiveTrialPolicyForProduct(id);
 
+    console.log(trialPolicy);
     return res.status(200).json({
       success: true,
       data: {
-        product,
+        ...product.toJSON(),
         trialPolicy
       }
     });
@@ -218,7 +230,7 @@ const createProduct = async (req, res) => {
       }
       
       // Validate trial policy fields
-      const { trialDays, penaltyType, penaltyValue, returnWindowHours } = parsedTrialPolicy;
+      const { trialDays, penaltyValue, returnWindowHours } = parsedTrialPolicy;
       
       if (!trialDays || !penaltyValue || !returnWindowHours) {
         return res.status(400).json({
@@ -251,7 +263,6 @@ const createProduct = async (req, res) => {
       await TrailPolicy.create({
         product_id: product.id,
         trial_days: parseInt(trialDays),
-        penalty_type: penaltyType,
         penalty_value: parseFloat(penaltyValue),
         return_window_hours: parseInt(returnWindowHours)
       });
@@ -259,7 +270,10 @@ const createProduct = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      data: product
+      data: {
+        product,
+        trialPolicy: await TrailPolicy.findOne({ where: { product_id: product.id } })
+      }
     });
   } catch (error) {
     console.error('Error creating product:', error);

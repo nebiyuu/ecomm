@@ -2,14 +2,6 @@ import TrailPolicy from "../model/trailPolicies.js";
 import Product from "../model/product.js";
 import { validationResult } from "express-validator";
 
-// Helper function to validate request
-const validateRequest = (req) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return { success: false, errors: errors.array() };
-  }
-  return { success: true };
-};
 
 // Helper function to check if product exists
 const checkProductExists = async (productId) => {
@@ -23,7 +15,7 @@ const checkProductExists = async (productId) => {
 // Helper function to find active trial policy
 const findActiveTrialPolicy = async (productId) => {
   const trialPolicy = await TrailPolicy.findOne({
-    where: { product_id: productId, active: true }
+    where: { product_id: productId}
   });
   return trialPolicy;
 };
@@ -73,13 +65,12 @@ export const createTrialPolicy = async (req, res) => {
 // Update existing trial policy
 export const updateTrialPolicy = async (req, res) => {
   try {
-    const validation = validateRequest(req);
-    if (!validation.success) {
-      return res.status(400).json({ errors: validation.errors });
-    }
 
     const { id } = req.params;
-    const { trial_days, penalty_value, return_window_hours } = req.body;
+    const { trial_days, penalty_value, return_window_hours } = req.body || {};
+
+    //print the req
+      console.log(req.body);
 
     // Find existing trial policy
     const trialPolicy = await findActiveTrialPolicy(id);
@@ -88,11 +79,12 @@ export const updateTrialPolicy = async (req, res) => {
     }
 
     // Update trial policy
-    await trialPolicy.update({
-      trial_days: trial_days || trialPolicy.trial_days,
-      penalty_value: penalty_value || trialPolicy.penalty_value,
-      return_window_hours: return_window_hours || trialPolicy.return_window_hours
-    });
+await trialPolicy.update({
+  trial_days: trial_days ?? trialPolicy.trial_days,
+  penalty_value: penalty_value ?? trialPolicy.penalty_value,
+  return_window_hours: return_window_hours ?? trialPolicy.return_window_hours
+});
+
 
     res.status(200).json({
       message: "Trial policy updated successfully",
