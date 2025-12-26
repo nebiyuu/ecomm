@@ -9,12 +9,13 @@ import { uploadProduct } from "../config/upload.js";
 
 const router = Router();
 
-// Public routes
+// Public routes to get a product
 router.get("/", productController.listProducts);
-router.get("/category/:category", productController.listProductsByCategory);
 router.get("/:id", productController.getProduct);
 
 // Protected routes (require authentication)
+
+//create a product
 router.post(
   "/", 
   requireAuth,
@@ -23,7 +24,8 @@ router.post(
   productController.createProduct
 );
 
-router.put(
+//update a product 
+router.patch(
   "/:id",
   requireAuth,
   uploadProduct.array("images", 10),
@@ -31,6 +33,7 @@ router.put(
   productController.updateProduct
 );
 
+//detele a product
 router.delete(
   "/:id",
   requireAuth,

@@ -49,7 +49,7 @@ export const registerBuyer = async (req, res) => {
   profilePic: profilePicUrl,
   userId: newUser.id,
   emailVerified: false,
-  username,       // ✅ include these
+  username,       
   email,
   password: hashedPassword
 });
