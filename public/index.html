@@ -194,7 +194,6 @@
   "ownerId": "number (admin only - for transferring product ownership)",
   "trialPolicy": {                      // optional create/update of trial policy
     "trialDays": "number (> 0)",
-    "penaltyType": "string",
     "penaltyValue": "number (>= 0)",
     "returnWindowHours": "number (> 0)"
   }
@@ -227,6 +226,89 @@
       <li>403: <code>{ "success": false, "message": "Not authorized to delete this product" }</code></li>
       <li>404: <code>{ "success": false, "message": "Product not found" }</code></li>
       <li>500: <code>{ "success": false, "message": "Error deleting product", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <h2>Trial Policies</h2>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/products/:id/trial-policy</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
+    <div>Creates a trial policy for a product. Only authenticated sellers or admins can create trial policies.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+      <li>Body (JSON):
+<pre>{
+  "trial_days": "number (required, 1-365)",
+  "penalty_value": "number (required, >= 0)",
+  "return_window_hours": "number (required, 1-8760)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>201: <code>{ "message": "Trial policy created successfully", "trialPolicy": TrialPolicy }</code></li>
+      <li>400: <code>{ "errors": [...] } | { "error": "Product not found" } | { "error": "Trial policy already exists for this product" }</code></li>
+      <li>401: <code>{ "message": "Unauthorized" }</code></li>
+      <li>500: <code>{ "error": "Internal server error" }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">PATCH</span> <code>/api/products/:id/trial-policy</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
+    <div>Updates an existing trial policy. Only the product owner or admin can update it. All fields are optional.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+      <li>Body (JSON, all fields optional):
+<pre>{
+  "trial_days": "number (1-365)",
+  "penalty_value": "number (>= 0)",
+  "return_window_hours": "number (1-8760)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "message": "Trial policy updated successfully", "trialPolicy": TrialPolicy }</code></li>
+      <li>400: <code>{ "errors": [...] }</code></li>
+      <li>401: <code>{ "message": "Unauthorized" }</code></li>
+      <li>404: <code>{ "error": "Trial policy not found for this product" }</code></li>
+      <li>500: <code>{ "error": "Internal server error" }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">DELETE</span> <code>/api/products/:id/trial-policy</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
+    <div>Soft deletes/disables a trial policy. Only the product owner or admin can delete it.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "message": "Trial policy disabled successfully" }</code></li>
+      <li>401: <code>{ "message": "Unauthorized" }</code></li>
+      <li>404: <code>{ "error": "Trial policy not found for this product" }</code></li>
+      <li>500: <code>{ "error": "Internal server error" }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/products/:id/trial-policy</code> <span class="pill auth">Public</span></div>
+    <div>Gets the trial policy for a specific product.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "trialPolicy": TrialPolicy }</code></li>
+      <li>404: <code>{ "error": "Trial policy not found for this product" }</code></li>
+      <li>500: <code>{ "error": "Internal server error" }</code></li>
     </ul>
   </div>
 
