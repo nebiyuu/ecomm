@@ -4,11 +4,18 @@ name: Node.js Run Check
 on:
   push:
     branches:
-      - main  # change to your branch
+      - main
 
 jobs:
   check-node:
     runs-on: ubuntu-latest
+
+    env:
+      DB_HOST: localhost
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: mydb
+      CI: true  # optional, use in your code to skip DB connection
 
     steps:
       - name: Checkout code
@@ -17,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'  # your Node version
+          node-version: '20'
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps

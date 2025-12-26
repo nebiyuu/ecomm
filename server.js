@@ -24,13 +24,13 @@ app.get("/health", (req, res) => res.send("ok"));
 
 
 
-// connect db
-sequelize.authenticate()
-  .then(() => console.log("✅ DB connected"))
-  .catch(err => console.error("❌ DB connection error:", err));
+if (!process.env.CI) {
+  sequelize.authenticate()
+    .then(() => console.log("✅ DB connected"))
+    .catch(err => console.error("❌ DB connection error:", err));
 
-
-
-// start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+} else {
+  console.log("CI detected – skipping DB and server start");
+}
