@@ -77,6 +77,11 @@ export const updateTrialPolicy = async (req, res) => {
     if (!trialPolicy) {
       return res.status(404).json({ error: "Trial policy not found for this product" });
     }
+    if (trialPolicy.active === true) {
+      return res.status(409).json({
+        error: "Active trial policy cannot be updated"
+        });
+    }
 
     // Update trial policy
 await trialPolicy.update({

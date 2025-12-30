@@ -19,7 +19,6 @@ router.post(
 router.patch(
   "/:id/trial-policy",
   requireAuth,
-  trialPolicyUpdateValidation,
   trialController.updateTrialPolicy
 );
 
