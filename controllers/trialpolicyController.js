@@ -106,6 +106,12 @@ export const deleteTrialPolicy = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (trialPolicy.active === true) {
+  return res.status(409).json({
+    error: "Active trial policy cannot be updated"
+  });
+}
+
     // Find existing trial policy
     const trialPolicy = await findActiveTrialPolicy(id);
     if (!trialPolicy) {
