@@ -487,6 +487,135 @@ profilePic: &lt;file&gt;          // required image file field</pre>
     </ul>
   </div>
 
+  <h2>Rental Products</h2>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rentals</code> <span class="pill auth">Public</span></div>
+    <div>Lists all rental products with optional filtering by availability and daily rate.</div>
+    <h4>Query Parameters (optional)</h4>
+    <ul>
+      <li><code>available</code> — Filter by availability (<code>true</code>/<code>false</code>)</li>
+      <li><code>minRate</code> — Minimum daily rate</li>
+      <li><code>maxRate</code> — Maximum daily rate</li>
+      <li><code>page</code> — Page number (default: 1)</li>
+      <li><code>limit</code> — Items per page (default: 10)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "products": [...], "pagination": {...} }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving rentals", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rentals/:id</code> <span class="pill auth">Public</span></div>
+    <div>Get a rental product by product ID. Returns product with rentable details.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "product": {...} }</code></li>
+      <li>404: <code>{ "success": false, "message": "Product not found or not rentable" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving rental", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/rentals</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
+    <div>Creates a new product and rental listing in a single transaction. Supports image uploads.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Content-Type: <code>multipart/form-data</code> (for image uploads) or <code>application/json</code></li>
+      <li>Body fields:</li>
+    </ul>
+<pre>name: "string (required)"
+description: "string (required)"
+category: "string (required)"
+condition: "string (optional, enum: ['new', 'used', 'refurbished'], default: 'new')"
+price: "number (required, > 0)"
+dailyRate: "number (required, > 0)"
+penaltyRate: "number (optional, default: 0.00)"
+images: "file[] (optional, up to 10 images)"
+ownerId: "UUID (optional, admin only - for assigning to specific seller)"</pre>
+    <h4>Responses</h4>
+    <ul>
+      <li>201: <code>{ "success": true, "message": "Product and Rental listing created successfully", "data": { product, rentable } }</code></li>
+      <li>400: <code>{ "success": false, "errors": [...] }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "Only sellers and admins can create products" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error creating rental product", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">PATCH</span> <code>/api/rentals/:id</code> <span class="pill protected">JWT (Owner/Admin)</span></div>
+    <div>Updates both product and rental details. Only the product owner or admin can update.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+      <li>Body (JSON, all fields optional):</li>
+    </ul>
+<pre>{
+  "name": "string",
+  "description": "string",
+  "category": "string",
+  "condition": "string (enum: ['new', 'used', 'refurbished'])",
+  "price": "number (> 0)",
+  "dailyRate": "number (> 0)",
+  "penaltyRate": "number",
+  "available": "boolean"
+}</pre>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "message": "Product and rental updated successfully", "product": {...} }</code></li>
+      <li>400: <code>{ "success": false, "errors": [...] }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "Not authorized to update this rental" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Product not found or not rentable" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error updating rental", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">DELETE</span> <code>/api/rentals/:id</code> <span class="pill protected">JWT (Owner/Admin)</span></div>
+    <div>Deletes a rental product. Only the product owner or admin can delete.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "message": "Rentable product deleted successfully" }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "Not authorized to delete this rental" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Rentable product not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error deleting rental", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rentals/renter/:renterId</code> <span class="pill protected">JWT</span></div>
+    <div>Get all rental products listed by a specific seller (renter). Users can only view their own listings unless admin.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>renterId</code> — Seller/User ID</li>
+      <li>Query: <code>page</code>, <code>limit</code> (optional)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "rentables": [...], "pagination": {...} }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "success": false, "message": "You can only view your own rentable listings" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving rentals", "error": "..." }</code></li>
+    </ul>
+  </div>
+
   <h2>Security</h2>
   <ul>
     <li><strong>JWT Secret</strong>: <code>JWT_SECRET</code> env must be configured.</li>
