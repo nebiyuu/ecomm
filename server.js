@@ -7,6 +7,8 @@ import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/loginrouter.js";
 import productRoutes from "./routes/productRoutes.js";
 import trailRoutes from "./routes/trailRoutes.js";
+import rentRoutes from "./routes/rentRoutes.js";
+
 
 dotenv.config();
 const app = express();
@@ -19,6 +21,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/products", trailRoutes);
+app.use("/api/rentals", rentRoutes);
 app.get("/health", (req, res) => res.send("ok"));
 
 

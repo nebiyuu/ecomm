@@ -3,7 +3,7 @@ import Product from "../model/product.js";
 import { validationResult } from "express-validator";
 
 
-// Helper function to check if product exists
+// Helper function to check if product existss
 const checkProductExists = async (productId) => {
   const product = await Product.findByPk(productId);
   if (!product) {
@@ -105,6 +105,12 @@ await trialPolicy.update({
 export const deleteTrialPolicy = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (trialPolicy.active === true) {
+  return res.status(409).json({
+    error: "Active trial policy cannot be updated"
+  });
+}
 
     // Find existing trial policy
     const trialPolicy = await findActiveTrialPolicy(id);

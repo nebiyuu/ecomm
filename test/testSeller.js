@@ -9,9 +9,13 @@ async function testSeller() {
     console.log("✅ Tables synced successfully");
 
     const newSeller = await Seller.create({
+      id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      firstName: "John",
+      lastName: "Doe",
+      address: "123 Main Street, City, Country",
       username: "_sesaller_",
       email: "sasa_seller_@example.com",
-      password: "supersnodeecretpassword",
+      password: "supersecretpassword",
       license: "LIC-111233345",
     });
 
