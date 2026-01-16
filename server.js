@@ -21,7 +21,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/products", trailRoutes);
-app.use("/api/products/rentals", rentRoutes);
+app.use("/api/rentals", rentRoutes);
 app.get("/health", (req, res) => res.send("ok"));
 
 

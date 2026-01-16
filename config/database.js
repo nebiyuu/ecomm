@@ -13,4 +13,4 @@ const sequelize = new Sequelize(
   }
 );
 
-export default sequelize; // fixed export
+export default sequelize; 

@@ -3,6 +3,8 @@ import { Op } from "sequelize";
 import Rentable from "../model/rentable.js";
 import Product from "../model/product.js";
 import User from "../model/user.js";
+import sequelize from '../model/index.js'; 
+import crypto from 'crypto';
 
 // Set up model associations
 Rentable.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
@@ -11,109 +13,141 @@ Product.hasOne(Rentable, { foreignKey: 'productId', as: 'rentables' });
 Rentable.belongsTo(User, { foreignKey: 'renterId', as: 'renter' });
 User.hasMany(Rentable, { foreignKey: 'renterId', as: 'rentables' });
 
-Product.belongsTo(User, { foreignKey: 'ownerId', as: 'owner' });
-User.hasMany(Product, { foreignKey: 'ownerId', as: 'products' });
+ Product.belongsTo(User, { foreignKey: 'ownerId', as: 'owner' });
+ User.hasMany(Product, { foreignKey: 'ownerId', as: 'products' });
 
-// Helper function to check rentable access
-const checkRentableAccess = (rentable, userId, role) => {
-  if (role === 'admin') return true;
-  if (role === 'seller' && rentable.renterId === userId) return true;
-  return false;
-};
-
-// Create a new rentable product
-// export const createRentable = async (req, res, next) => {
-//   try {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//       const err = new Error('Validation failed');
-//       err.statusCode = 400;
-//       err.details = errors.array();
-//       throw err;
-//     }
-
-//     const { productId, dailyRate, penaltyRate } = req.body;
-//     const userId = req.user.id;
-//     const userRole = req.user.role;
-
-//     // Check if product exists and user owns it
-//     const product = await Product.findByPk(productId);
-//     if (!product) {
-//       const err = new Error('Product not found');
-//       err.statusCode = 404;
-//       throw err;
-//     }
-
-//     if (userRole !== 'admin' && product.ownerId !== userId) {
-//       const err = new Error('You can only create rentable listings for your own products');
-//       err.statusCode = 403;
-//       throw err;
-//     }
-
-//     // Check if rentable already exists for this product
-//     const existingRentable = await Rentable.findOne({ where: { productId } });
-//     if (existingRentable) {
-//       const err = new Error('This product is already listed as rentable');
-//       err.statusCode = 409;
-//       throw err;
-//     }
-
-//     const rentable = await Rentable.create({
-//       id: crypto.randomUUID(),
-//       productId,
-//       dailyRate,
-//       penaltyRate: penaltyRate || 0.00,
-//       renterId: userId,
-//     });
-
-//     res.status(201).json({
-//       message: 'Rentable product created successfully',
-//       rentable,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
+// // Helper function to check rentable access
+// const checkRentableAccess = (rentable, userId, role) => {
+//   if (role === 'admin') return true;
+//   if (role === 'seller' && rentable.renterId === userId) return true;
+//   return false;
 // };
 
-// Get all rentable products
-export const listRentables = async (req, res, next) => {
+ const createRentalProduct = async (req, res, next) => {
+      console.log(req.body);
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
+  // Start a transaction
+  const t = await sequelize.transaction();
+
   try {
+    const { 
+      name, description, category, condition, price, 
+      dailyRate, penaltyRate 
+    } = req.body;
+
+       // If files were uploaded, map their Cloudinary URLs into the images array
+    let images = [];
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      images = req.files.map((file) => file.path);
+    } else if (req.body.images) {
+      // Fallback: allow images to be passed as JSON array in body (for backward compatibility)
+      images = Array.isArray(req.body.images) ? req.body.images : [];
+    }
+    
+    // Admins can specify ownerId, sellers can only create for themselves
+    const ownerId = req.user.role === 'admin' && req.body.ownerId 
+      ? req.body.ownerId 
+      : req.user.id;
+
+    // Verify the user is a seller or admin
+    const user = await User.findByPk(ownerId);
+    if (!user || (user.role !== 'seller' && user.role !== 'admin')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only sellers and admins can create products'
+      });
+    }
+
+    const product = await Product.create({
+      name,
+      description,
+      category,
+      condition: condition || 'new',
+      price: parseFloat(price),
+      images,
+      ownerId
+    }, { transaction: t });
+
+    // 4. Create the Rentable Entry
+    // Note: renterId in your model refers to the 'sellers' table/role, 
+    // which here is the person listing the item (the ownerId).
+    const rentable = await Rentable.create({
+      productId: product.id,
+      dailyRate: parseFloat(dailyRate),
+      penaltyRate: penaltyRate ? parseFloat(penaltyRate) : 0.00,
+      renterId: ownerId, 
+      available: true
+    }, { transaction: t });
+
+    console.log('Rentable created:', rentable);
+
+    // 5. Commit everything to the database
+    await t.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Product and Rental listing created successfully',
+      data: {
+        product,
+        rentable
+      }
+    });
+
+  } catch (error) {
+    // If any operation fails, rollback both Product and Rentable
+    await t.rollback();
+    console.error('Error creating rental product:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error creating rental product',
+      error: error.message
+    });
+  }
+};
+
+
+// Get all rentable products
+const listRentables = async (req, res, next) => {
+ try {
     const { page = 1, limit = 10, available, minRate, maxRate } = req.query;
     const offset = (page - 1) * limit;
 
-    const whereClause = {};
-    
-    if (available !== undefined) {
-      whereClause.available = available === 'true';
-    }
-    
+    // Rentable filters
+    const rentableWhere = {};
+    if (available !== undefined) rentableWhere.available = available === "true";
     if (minRate || maxRate) {
-      whereClause.dailyRate = {};
-      if (minRate) whereClause.dailyRate[Op.gte] = parseFloat(minRate);
-      if (maxRate) whereClause.dailyRate[Op.lte] = parseFloat(maxRate);
+      rentableWhere.dailyRate = {};
+      if (minRate) rentableWhere.dailyRate[Op.gte] = parseFloat(minRate);
+      if (maxRate) rentableWhere.dailyRate[Op.lte] = parseFloat(maxRate);
     }
 
-    const { count, rows: rentables } = await Rentable.findAndCountAll({
-      where: whereClause,
+    const { count, rows: products } = await Product.findAndCountAll({
       include: [
         {
-          model: Product,
-          as: 'product',
-          attributes: ['id', 'name', 'description', 'price', 'images'],
+          model: Rentable,
+          as: "rentables",
+          where: rentableWhere, // only products that have rentables matching filters
+          required: true,      // critical: ensures product is returned only if a rentable exists
         },
         {
           model: User,
-          as: 'renter',
-          attributes: ['id', 'username', 'email'],
+          as: "owner",
+          attributes: ["id", "username", "email"],
         },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['createdAt', 'DESC']],
+      order: [["createdAt", "DESC"]],
     });
 
     res.json({
-      rentables,
+      success: true,
+      products,
       pagination: {
         total: count,
         page: parseInt(page),
@@ -121,52 +155,51 @@ export const listRentables = async (req, res, next) => {
         pages: Math.ceil(count / limit),
       },
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-// Get a single rentable product by ID
-export const getRentable = async (req, res, next) => {
-  try {
-    const { id } = req.params;
 
-    const rentable = await Rentable.findByPk(id, {
+//get a re
+const getRentable = async (req, res, next) => {
+  try {
+    const { id } = req.params; // PRODUCT ID
+
+    const product = await Product.findOne({
+      where: { id },
       include: [
         {
-          model: Product,
-          as: 'product',
-          attributes: ['id', 'name', 'description', 'price', 'images', 'ownerId'],
-          include: [
-            {
-              model: User,
-              as: 'owner',
-              attributes: ['id', 'username', 'email'],
-            },
-          ],
+          model: Rentable,
+          as: "rentables",
+          required: true, // 🔥 ensures product MUST have a rentable
         },
         {
           model: User,
-          as: 'renter',
-          attributes: ['id', 'username', 'email'],
+          as: "owner",
+          attributes: ["id", "username", "email"],
         },
       ],
     });
 
-    if (!rentable) {
-      const err = new Error('Rentable product not found');
-      err.statusCode = 404;
-      throw err;
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found or not rentable",
+      });
     }
 
-    res.json({ rentable });
+    res.json({
+      success: true,
+      product,
+    });
   } catch (error) {
     next(error);
   }
 };
 
 // Update a rentable product
-export const updateRentable = async (req, res, next) => {
+ const updateRentable = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -213,7 +246,7 @@ export const updateRentable = async (req, res, next) => {
 };
 
 // Delete a rentable product
-export const deleteRentable = async (req, res, next) => {
+ const deleteRentable = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
@@ -244,7 +277,7 @@ export const deleteRentable = async (req, res, next) => {
 };
 
 // Get rentable products by renter (seller)
-export const getRentablesByRenter = async (req, res, next) => {
+ const getRentablesByRenter = async (req, res, next) => {
   try {
     const { renterId } = req.params;
     const userId = req.user.id;
@@ -289,10 +322,10 @@ export const getRentablesByRenter = async (req, res, next) => {
 };
 
 export default {
-  createRentable,
-  listRentables,
-  getRentable,
-  updateRentable,
-  deleteRentable,
-  getRentablesByRenter,
+    createRentalProduct,
+    listRentables,
+    getRentable,
+    updateRentable,
+    deleteRentable,
+    getRentablesByRenter,
 };

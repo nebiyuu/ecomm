@@ -5,6 +5,7 @@ import {
   createRentableValidation, 
   updateRentableValidation 
 } from "../middlewares/validators/rentValidator.js";
+import { uploadProduct } from "../config/upload.js";
 
 const router = Router();
 
@@ -18,8 +19,8 @@ router.get("/:id", rentController.getRentable);
 router.post(
   "/", 
   requireAuth,
-  createRentableValidation, 
-  rentController.createRentable
+  uploadProduct.array("images", 10),
+  rentController.createRentalProduct
 );
 
 // Update a rentable product
