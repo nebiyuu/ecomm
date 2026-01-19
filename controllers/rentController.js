@@ -161,7 +161,7 @@ const listRentables = async (req, res, next) => {
 };
 
 
-//get a re
+//get a rentable by id
 const getRentable = async (req, res, next) => {
   try {
     const { id } = req.params; // PRODUCT ID
@@ -200,50 +200,78 @@ const getRentable = async (req, res, next) => {
 
 // Update a rentable product
  const updateRentable = async (req, res, next) => {
+  const t = await sequelize.transaction();
+
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const err = new Error('Validation failed');
-      err.statusCode = 400;
-      err.details = errors.array();
-      throw err;
+    const { id } = req.params; // PRODUCT ID
+
+    const {
+      name,
+      description,
+      category,
+      condition,
+      price,
+      dailyRate,
+      penaltyRate,
+      available,
+    } = req.body;
+
+    // 1️⃣ Fetch product WITH rentable
+    const product = await Product.findOne({
+      where: { id },
+      include: [
+        {
+          model: Rentable,
+          as: "rentables",
+          required: true, // ❗ must be rentable
+        },
+      ],
+      transaction: t,
+    });
+
+    if (!product) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Product not found or not rentable",
+      });
     }
 
-    const { id } = req.params;
-    const { dailyRate, penaltyRate, available } = req.body;
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    // 2️⃣ Update PRODUCT fields
+    await product.update(
+      {
+        ...(name && { name }),
+        ...(description && { description }),
+        ...(category && { category }),
+        ...(condition && { condition }),
+        ...(price && { price: parseFloat(price) }),
+      },
+      { transaction: t }
+    );
 
-    const rentable = await Rentable.findByPk(id);
-    if (!rentable) {
-      const err = new Error('Rentable product not found');
-      err.statusCode = 404;
-      throw err;
-    }
+    // 3️⃣ Update RENTABLE fields
+    await product.rentables.update(
+      {
+        ...(dailyRate && { dailyRate: parseFloat(dailyRate) }),
+        ...(penaltyRate && { penaltyRate: parseFloat(penaltyRate) }),
+        ...(available !== undefined && { available }),
+      },
+      { transaction: t }
+    );
 
-    // Check access permissions
-    if (!checkRentableAccess(rentable, userId, userRole)) {
-      const err = new Error('You can only update your own rentable listings');
-      err.statusCode = 403;
-      throw err;
-    }
+    await t.commit();
 
-    // Update fields
-    const updateData = {};
-    if (dailyRate !== undefined) updateData.dailyRate = dailyRate;
-    if (penaltyRate !== undefined) updateData.penaltyRate = penaltyRate;
-    if (available !== undefined) updateData.available = available;
-
-    await rentable.update(updateData);
-
-    res.json({
-      message: 'Rentable product updated successfully',
-      rentable,
+    return res.json({
+      success: true,
+      message: "Product and rental updated successfully",
+      product,
     });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };
+
 
 // Delete a rentable product
  const deleteRentable = async (req, res, next) => {
