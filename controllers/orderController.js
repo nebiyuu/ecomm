@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { Order, OrderItem } from "../model/order.js";
-import { Cart, CartItem } from "../model/cart.js";
+import Order from "../model/order.js";
 import Product from "../model/product.js";
 
 export const createOrder = async (req, res) => {
@@ -8,54 +7,34 @@ export const createOrder = async (req, res) => {
     const buyerId = req.user?.id || req.body.buyerId;
     if (!buyerId) return res.status(400).json({ message: "Buyer ID required" });
 
-    const { shippingAddress, billingAddress, paymentMethod, cartId, notes } = req.body;
-    if (!shippingAddress || !paymentMethod) return res.status(400).json({ message: "Shipping address and payment method required" });
+    const { productId, quantity, trialStartedAt, trialEndsAt } = req.body;
+    if (!productId) return res.status(400).json({ message: "productId required" });
 
-    let cart;
-    if (cartId) {
-      cart = await Cart.findByPk(cartId, { include: [{ association: "items", include: [{ model: Product, as: "product" }] }] });
-    }
-    if (!cart || cart.status !== "active") {
-      cart = await Cart.getActiveCartForBuyer(buyerId);
-    }
-    if (!cart || cart.items.length === 0) return res.status(400).json({ message: "Cart is empty or not found" });
+    const qty = Math.max(parseInt(quantity || "1", 10), 1);
+
+    const product = await Product.findByPk(productId);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const unitPrice = parseFloat(product.price);
+    const totalPrice = unitPrice * qty;
 
     const orderId = uuidv4();
-    let totalAmount = 0;
-    const orderItems = [];
-
-    for (const item of cart.items) {
-      const subtotal = parseFloat(item.priceAtAddition) * item.quantity;
-      totalAmount += subtotal;
-      orderItems.push({
-        id: uuidv4(),
-        orderId,
-        productId: item.productId,
-        productName: item.product?.name || "Unknown Product",
-        quantity: item.quantity,
-        unitPrice: item.priceAtAddition,
-        subtotal
-      });
-    }
-
-    const order = await Order.create({
+    await Order.create({
       id: orderId,
       buyerId,
-      status: "pending",
-      totalAmount,
-      shippingAddress,
-      billingAddress: billingAddress || shippingAddress,
-      paymentMethod,
-      paymentStatus: "pending",
-      notes
+      productId,
+      quantity: qty,
+      totalPrice,
+      trialStartedAt: trialStartedAt || null,
+      trialEndsAt: trialEndsAt || null,
+      status: trialStartedAt ? "trial_active" : "pending",
     });
 
-    await OrderItem.bulkCreate(orderItems);
-    cart.status = "converted";
-    await cart.save();
-
     const createdOrder = await Order.findByPk(orderId, {
-      include: [{ association: "items", include: [{ model: Product, as: "product", attributes: ["id", "name", "imageUrl"] }] }, { association: "buyer", attributes: ["id", "firstName", "lastName", "email"] }]
+      include: [
+        { association: "product", attributes: ["id", "name", "imageUrl", "price"] },
+        { association: "buyer", attributes: ["id", "firstName", "lastName", "email"] },
+      ],
     });
 
     res.status(201).json({ message: "Order created successfully", order: createdOrder });
@@ -69,7 +48,10 @@ export const getOrder = async (req, res) => {
   try {
     const { id } = req.params;
     const order = await Order.findByPk(id, {
-      include: [{ association: "items", include: [{ model: Product, as: "product", attributes: ["id", "name", "imageUrl"] }] }, { association: "buyer", attributes: ["id", "firstName", "lastName", "email", "phoneNumber"] }]
+      include: [
+        { association: "product", attributes: ["id", "name", "imageUrl", "price"] },
+        { association: "buyer", attributes: ["id", "firstName", "lastName", "email", "phoneNumber"] },
+      ],
     });
     if (!order) return res.status(404).json({ message: "Order not found" });
     res.status(200).json({ order });
@@ -88,7 +70,7 @@ export const getBuyerOrders = async (req, res) => {
 
     const { rows, count } = await Order.findAndCountAll({
       where: { buyerId },
-      include: [{ association: "items", include: [{ model: Product, as: "product", attributes: ["id", "name", "imageUrl"] }] }],
+      include: [{ association: "product", attributes: ["id", "name", "imageUrl", "price"] }],
       order: [["createdAt", "DESC"]],
       offset,
       limit
@@ -104,19 +86,15 @@ export const getBuyerOrders = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, paymentStatus, transactionId } = req.body;
-    const validStatuses = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"];
-    const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
+    const { status } = req.body;
+    const validStatuses = ["pending", "trial_active", "paid", "shipped", "returned", "cancelled"];
 
     const order = await Order.findByPk(id);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     if (status && !validStatuses.includes(status)) return res.status(400).json({ message: "Invalid status" });
-    if (paymentStatus && !validPaymentStatuses.includes(paymentStatus)) return res.status(400).json({ message: "Invalid payment status" });
 
     if (status) order.status = status;
-    if (paymentStatus) order.paymentStatus = paymentStatus;
-    if (transactionId) order.transactionId = transactionId;
 
     await order.save();
 
@@ -133,7 +111,7 @@ export const cancelOrder = async (req, res) => {
     const order = await Order.findByPk(id);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    if (["shipped", "delivered", "cancelled", "refunded"].includes(order.status)) {
+    if (["shipped", "returned", "cancelled"].includes(order.status)) {
       return res.status(400).json({ message: "Order cannot be cancelled in current status" });
     }
 
@@ -160,7 +138,10 @@ export const listOrders = async (req, res) => {
 
     const { rows, count } = await Order.findAndCountAll({
       where,
-      include: [{ association: "items", include: [{ model: Product, as: "product", attributes: ["id", "name", "imageUrl"] }] }, { association: "buyer", attributes: ["id", "firstName", "lastName", "email"] }],
+      include: [
+        { association: "product", attributes: ["id", "name", "imageUrl", "price"] },
+        { association: "buyer", attributes: ["id", "firstName", "lastName", "email"] },
+      ],
       order: [["createdAt", "DESC"]],
       offset,
       limit
