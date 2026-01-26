@@ -127,6 +127,9 @@ const listRentables = async (req, res, next) => {
     }
 
     const { count, rows: products } = await Product.findAndCountAll({
+      where: {
+        isAvailable: true // Only return available products
+      },
       include: [
         {
           model: Rentable,
@@ -167,7 +170,10 @@ const getRentable = async (req, res, next) => {
     const { id } = req.params; // PRODUCT ID
 
     const product = await Product.findOne({
-      where: { id },
+      where: { 
+        id,
+        isAvailable: true // Only return available products
+      },
       include: [
         {
           model: Rentable,

@@ -1,44 +1,63 @@
 import { v4 as uuidv4 } from "uuid";
+import sequelize from "../model/index.js";
 import Order from "../model/order.js";
 import Product from "../model/product.js";
+import Buyer from "../model/buyer.js";
 
 export const createOrder = async (req, res) => {
   try {
-    const buyerId = req.user?.id || req.body.buyerId;
-    if (!buyerId) return res.status(400).json({ message: "Buyer ID required" });
+    const buyer = await Buyer.findOne({ 
+      where: { username: req.user?.username } 
+    });
+    if (!buyer) return res.status(400).json({ message: "Buyer not found" });
+    
+    const buyerId = buyer.id;
 
     const { productId, quantity, trialStartedAt, trialEndsAt } = req.body;
     if (!productId) return res.status(400).json({ message: "productId required" });
 
     const qty = Math.max(parseInt(quantity || "1", 10), 1);
 
-    const product = await Product.findByPk(productId);
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    const orderId = await sequelize.transaction(async (t) => {
+      const product = await Product.findByPk(productId, { transaction: t });
+      if (!product) {
+        const err = new Error("Product not found");
+        err.statusCode = 404;
+        throw err;
+      }
 
-    const unitPrice = parseFloat(product.price);
-    const totalPrice = unitPrice * qty;
+      if (!product.isAvailable) {
+        const err = new Error("Product is currently unavailable");
+        err.statusCode = 400;
+        throw err;
+      }
 
-    const orderId = uuidv4();
-    await Order.create({
-      id: orderId,
-      buyerId,
-      productId,
-      quantity: qty,
-      totalPrice,
-      trialStartedAt: trialStartedAt || null,
-      trialEndsAt: trialEndsAt || null,
-      status: trialStartedAt ? "trial_active" : "pending",
+      const unitPrice = parseFloat(product.price);
+      const totalPrice = unitPrice * qty;
+
+      const newOrderId = uuidv4();
+      await Order.create(
+        {
+          id: newOrderId,
+          buyerId,
+          productId,
+          quantity: qty,
+          totalPrice,
+          trialStartedAt: trialStartedAt || null,
+          trialEndsAt: trialEndsAt || null,
+          status: trialStartedAt ? "trial_active" : "pending",
+        },
+        { transaction: t }
+      );
+
+      return newOrderId;
     });
 
-    const createdOrder = await Order.findByPk(orderId, {
-      include: [
-        { association: "product", attributes: ["id", "name", "imageUrl", "price"] },
-        { association: "buyer", attributes: ["id", "firstName", "lastName", "email"] },
-      ],
-    });
-
-    res.status(201).json({ message: "Order created successfully", order: createdOrder });
+    res.status(201).json({ message: "Order created successfully", orderId: orderId });
   } catch (err) {
+    if (err?.statusCode) {
+      return res.status(err.statusCode).json({ message: err.message });
+    }
     console.error("Error creating order:", err);
     res.status(500).json({ message: "Error creating order", error: err.message });
   }
@@ -139,7 +158,7 @@ export const listOrders = async (req, res) => {
     const { rows, count } = await Order.findAndCountAll({
       where,
       include: [
-        { association: "product", attributes: ["id", "name", "imageUrl", "price"] },
+        { association: "product", attributes: ["id", "name", "images", "price"] },
         { association: "buyer", attributes: ["id", "firstName", "lastName", "email"] },
       ],
       order: [["createdAt", "DESC"]],

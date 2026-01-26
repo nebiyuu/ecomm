@@ -19,7 +19,7 @@ const Order = sequelize.define(
       references: { model: "products", key: "id" },
       field: "product_id",
     },
-    quantity: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1 }, defaultValue: 1 },
+ //   quantity: { type: DataTypes.INTEGER, allowNull: false, validate: { min: 1 }, defaultValue: 1 },
     totalPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: false, field: "total_price" },
     trialStartedAt: { type: DataTypes.DATE, allowNull: true, field: "trial_started_at" },
     trialEndsAt: { type: DataTypes.DATE, allowNull: true, field: "trial_ends_at" },
