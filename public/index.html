@@ -433,7 +433,6 @@ profilePic: &lt;file&gt;          // required image file field</pre>
   "approved": true
 }</pre>
     <h4>Responses</h4>
-    <ul>
       <li>200: <code>{ "message": "Seller updated successfully", "seller": { id, firstName, lastName, phoneNumber, storeName, username, email, address, license, approved, emailVerified, profilePic } }</code></li>
       <li>401: <code>{ "message": "Unauthorized" }</code></li>
       <li>404: <code>{ "message": "Seller not found" }</code></li>
@@ -441,89 +440,90 @@ profilePic: &lt;file&gt;          // required image file field</pre>
     </ul>
   </div>
 
+  <h2>Orders</h2>
+
   <div class="endpoint">
-    <div><span class="method">DELETE</span> <code>/api/sellers/:id</code> <span class="pill protected">JWT (admin)</span></div>
-    <div>Delete seller and corresponding user record. Admin only.</div>
+    <div><span class="method">POST</span> <code>/api/orders</code> <span class="pill protected">JWT</span></div>
+    <div>Creates a new order. Only authenticated buyers can create orders.</div>
     <h4>Request</h4>
     <ul>
       <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
-      <li>Params: <code>id</code> — Seller ID</li>
-    </ul>
-    <h4>Responses</h4>
-    <ul>
-      <li>200: <code>{ "message": "Seller deleted successfully" }</code></li>
-      <li>401: <code>{ "message": "Unauthorized" }</code></li>
-      <li>403: <code>{ "message": "Forbidden" }</code></li>
-      <li>404: <code>{ "message": "Seller not found" }</code></li>
-      <li>500: <code>{ "message": "Error deleting seller", "error": "..." }</code></li>
-    </ul>
-  </div>
-
-  <h2>Admin</h2>
-
-  <div class="endpoint">
-    <div><span class="method">POST</span> <code>/api/admin/login</code> <span class="pill auth">Public</span></div>
-    <div>Admin login.</div>
-    <h4>Request body</h4>
+      <li>Body (JSON):
 <pre>{
-  "username": "admin or email",
-  "password": "secret"
+  "productId": "UUID (required)",
+  "trialStartedAt": "ISO date (optional)",
+  "trialEndsAt": "ISO date (optional)"
 }</pre>
+      </li>
+    </ul>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ message, token, user }</code></li>
-      <li>400/401/403: <code>All fields required | Invalid password | Forbidden</code></li>
+      <li>201: <code>{ "message": "Order created", "orderId": "UUID", "status": "pending|trial_active" }</code></li>
+      <li>400: <code>{ "message": "productId required | Product not available | Buyer not found" }</code></li>
+      <li>500: <code>{ "message": "Failed to create order" }</code></li>
     </ul>
   </div>
 
   <div class="endpoint">
-    <div><span class="method">PATCH</span> <code>/api/admin/sellers/:id/approve</code> <span class="pill protected">JWT (admin)</span></div>
-    <div>Approves a seller. Requires admin token.</div>
+    <div><span class="method">GET</span> <code>/api/orders</code> <span class="pill auth">Public</span></div>
+    <div>Lists all orders with optional filtering and pagination.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>status</code> — Filter by order status ("pending", "trial_active", "paid", "returned", "cancelled")</li>
+          <li><code>buyerId</code> — Filter by buyer ID</li>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 20, max: 100)</li>
+        </ul>
+      </li>
+    </ul>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ message: "Seller approved", seller: { id, username, email, approved } }</code></li>
-      <li>404: <code>Seller not found</code></li>
-      <li>401/403: <code>Unauthorized | Forbidden</code></li>
+      <li>200: <code>{ "total": number, "page": number, "limit": number, "orders": [...] }</code></li>
+      <li>500: <code>{ "message": "Error listing orders", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/orders/:id</code> <span class="pill protected">JWT</span></div>
+    <div>Get a specific order by ID with product and buyer details.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Order ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "order": {...} }</code></li>
+      <li>404: <code>{ "message": "Order not found" }</code></li>
+      <li>500: <code>{ "message": "Error fetching order", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/orders/buyer/:buyerId</code> <span class="pill protected">JWT</span></div>
+    <div>Get all orders for a specific buyer with pagination. Uses authenticated buyer's username to find correct buyer ID.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>buyerId</code> — Buyer ID (required, but function uses authenticated user's username)</li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "total": number, "page": number, "limit": number, "orders": [...] }</code></li>
+      <li>400: <code>{ "message": "Buyer not found" }</code></li>
+      <li>500: <code>{ "message": "Error fetching orders", "error": "..." }</code></li>
     </ul>
   </div>
 
   <h2>Rental Products</h2>
-
-  <div class="endpoint">
-    <div><span class="method">GET</span> <code>/api/rentals</code> <span class="pill auth">Public</span></div>
-    <div>Lists all rental products with optional filtering by availability and daily rate.</div>
-    <h4>Query Parameters (optional)</h4>
-    <ul>
-      <li><code>available</code> — Filter by availability (<code>true</code>/<code>false</code>)</li>
-      <li><code>minRate</code> — Minimum daily rate</li>
-      <li><code>maxRate</code> — Maximum daily rate</li>
-      <li><code>page</code> — Page number (default: 1)</li>
-      <li><code>limit</code> — Items per page (default: 10)</li>
-    </ul>
-    <h4>Responses</h4>
-    <ul>
-      <li>200: <code>{ "success": true, "products": [...], "pagination": {...} }</code></li>
-      <li>500: <code>{ "success": false, "message": "Error retrieving rentals", "error": "..." }</code></li>
-    </ul>
-  </div>
-
-  <div class="endpoint">
-    <div><span class="method">GET</span> <code>/api/rentals/:id</code> <span class="pill auth">Public</span></div>
-    <div>Get a rental product by product ID. Returns product with rentable details.</div>
-    <h4>Request</h4>
-    <ul>
-      <li>Params: <code>id</code> — Product ID (required)</li>
-    </ul>
-    <h4>Responses</h4>
-    <ul>
-      <li>200: <code>{ "success": true, "product": {...} }</code></li>
-      <li>404: <code>{ "success": false, "message": "Product not found or not rentable" }</code></li>
-      <li>500: <code>{ "success": false, "message": "Error retrieving rental", "error": "..." }</code></li>
-    </ul>
-  </div>
-
-  <div class="endpoint">
-    <div><span class="method">POST</span> <code>/api/rentals</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
     <div>Creates a new product and rental listing in a single transaction. Supports image uploads.</div>
     <h4>Request</h4>
     <ul>

@@ -6,24 +6,23 @@ export const createRentableValidation = [
     .isUUID().withMessage('Product ID must be a valid UUID'),
   
   body('dailyRate')
-    .isFloat({ gt: 0 }).withMessage('Daily rate must be greater than 0')
+    .isFloat({ gt: 0, min_value: 0 }).withMessage('Daily rate must be a number greater than or equal to 0')
     .isDecimal({ decimal_digits: '0,2' }).withMessage('Daily rate must have at most 2 decimal places'),
   
   body('penaltyRate')
     .optional()
-    .isFloat({ gte: 0 }).withMessage('Penalty rate must be greater than or equal to 0')
-    .isDecimal({ decimal_digits: '0,2' }).withMessage('Penalty rate must have at most 2 decimal places'),
-];
+   .isFloat({ gt: 0, min_value: 0 }).withMessage('Penalty rate must be greater than or equal to 0')
+ ];
 
 export const updateRentableValidation = [
   body('dailyRate')
     .optional()
-    .isFloat({ gt: 0 }).withMessage('Daily rate must be greater than 0')
+    .isFloat({ gt: 0, min_value: 0 }).withMessage('Daily rate must be greater than or equal to 0')
     .isDecimal({ decimal_digits: '0,2' }).withMessage('Daily rate must have at most 2 decimal places'),
   
   body('penaltyRate')
     .optional()
-    .isFloat({ gte: 0 }).withMessage('Penalty rate must be greater than or equal to 0')
+    .isFloat({ gt: 0, min_value: 0 }).withMessage('Penalty rate must be greater than or equal to 0')
     .isDecimal({ decimal_digits: '0,2' }).withMessage('Penalty rate must have at most 2 decimal places'),
   
   body('available')

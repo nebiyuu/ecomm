@@ -35,6 +35,11 @@ const Product = sequelize.define("Product", {
   deletedAt: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  isAvailable: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
   tableName: "products",
@@ -43,7 +48,8 @@ const Product = sequelize.define("Product", {
   paranoid: true,
   defaultScope: {
     where: {
-      deletedAt: null
+      deletedAt: null,
+      isAvailable: true
     }
   }
 });

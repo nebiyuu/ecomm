@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import Product from "../model/product.js";
 import User from "../model/user.js";
 import TrailPolicy from "../model/trailPolicies.js";
+import Rentable from "../model/rentable.js";
 
 // Helper function to check product access
 const checkProductAccess = (product, userId, role) => {
@@ -15,6 +16,11 @@ const checkProductAccess = (product, userId, role) => {
 const getActiveTrialPolicyForProduct = async (productId) => {
   return TrailPolicy.findOne({
     where: { product_id: productId}
+  });
+};
+const getActiveRentalProductForProduct = async (productId) => {
+  return Rentable.findOne({
+    where: { productId: productId}
   });
 };
 
@@ -116,11 +122,26 @@ const listProducts = async (req, res) => {
         };
       })
     );
+    // Get rental products for all products
+    const productsWithRentals = await Promise.all(
+      products.map(async (product) => {
+        const rental = await getActiveRentalProductForProduct(product.id);
+        return {
+          ...product.toJSON(),
+          rental
+        };
+      })
+    );
     
+    const returnData = productsWithRentals.map((product, index) => ({
+      ...product,
+      trialPolicy: productsWithTrialPolicies[index]?.trialPolicy,
+      rental: product.rental
+    }));
     return res.status(200).json({
       success: true,
       count: products.length,
-      data: productsWithTrialPolicies
+      data: returnData
     });
   } catch (error) {
     console.error("Error listing products:", error);

@@ -23,9 +23,9 @@ const findActiveTrialPolicy = async (productId) => {
 // Create trial policy for a product
 export const createTrialPolicy = async (req, res) => {
   try {
-    const validation = validateRequest(req);
-    if (!validation.success) {
-      return res.status(400).json({ errors: validation.errors });
+    const validation = validationResult(req);
+    if (!validation.isEmpty()) {
+      return res.status(400).json({ errors: validation.array() });
     }
 
     const { id } = req.params;

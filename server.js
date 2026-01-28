@@ -8,6 +8,7 @@ import userRoutes from "./routes/loginrouter.js";
 import productRoutes from "./routes/productRoutes.js";
 import trailRoutes from "./routes/trailRoutes.js";
 import rentRoutes from "./routes/rentRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
 
 
 dotenv.config();
@@ -22,6 +23,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/products", trailRoutes);
 app.use("/api/rentals", rentRoutes);
+app.use("/api/orders", orderRoutes);
 app.get("/health", (req, res) => res.send("ok"));
 
 
