@@ -616,6 +616,50 @@ ownerId: "UUID (optional, admin only - for assigning to specific seller)"</pre>
     </ul>
   </div>
 
+  <h2>Payments</h2>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/payments/initiate</code> <span class="pill protected">JWT</span></div>
+    <div>Initiates payment with Chapa for a specific order. Creates payment record and returns checkout URL.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Body (JSON):
+<pre>{
+  "orderId": "UUID (required)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "checkoutUrl": "https://checkout.chapa.co/..." }</code></li>
+      <li>400: <code>{ "message": "orderId required | Order not payable" }</code></li>
+      <li>404: <code>{ "message": "Order not found" }</code></li>
+      <li>500: <code>{ "message": "Payment initiation failed | Failed to get checkout URL from Chapa" }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/payments/verify</code> <span class="pill auth">Public</span></div>
+    <div>Verifies payment status with Chapa using transaction reference. Updates payment and order status accordingly.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Body (JSON):
+<pre>{
+  "txRef": "string (required) - Chapa transaction reference"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "message": "Payment verified successfully", "paymentStatus": "paid" }</code></li>
+      <li>200: <code>{ "message": "Payment not successful", "paymentStatus": "failed|pending" }</code></li>
+      <li>400: <code>{ "message": "txRef is required" }</code></li>
+      <li>404: <code>{ "message": "Payment not found" }</code></li>
+      <li>500: <code>{ "message": "Payment verification failed | Failed to verify payment with Chapa" }</code></li>
+    </ul>
+  </div>
+
   <h2>Security</h2>
   <ul>
     <li><strong>JWT Secret</strong>: <code>JWT_SECRET</code> env must be configured.</li>
