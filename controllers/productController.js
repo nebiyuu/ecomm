@@ -19,6 +19,7 @@ const getActiveTrialPolicyForProduct = async (productId) => {
   });
 };
 const getActiveRentalProductForProduct = async (productId) => {
+  
   return Rentable.findOne({
     where: { productId: productId}
   });
@@ -122,6 +123,7 @@ const listProducts = async (req, res) => {
         };
       })
     );
+
     // Get rental products for all products
     const productsWithRentals = await Promise.all(
       products.map(async (product) => {
@@ -132,6 +134,8 @@ const listProducts = async (req, res) => {
         };
       })
     );
+    
+
     
     const returnData = productsWithRentals.map((product, index) => ({
       ...product,
