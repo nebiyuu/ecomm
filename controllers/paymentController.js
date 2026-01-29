@@ -29,9 +29,6 @@ export const initiatePayment = async (req, res) => {
 
     const buyer = await order.getBuyer({ transaction: t });
 
-    console.log("firstname: ", buyer.firstName,"email: " , buyer.email);
-    const txRef = await chapa.genTxRef(); // result: TX-JHBUVLM7HYMSWDA
-
     const newPayment = await Payment.create({
       orderId: order.id,
       chapaTxRef: txRef,
@@ -56,7 +53,7 @@ export const initiatePayment = async (req, res) => {
         tx_ref: txRef,
         callback_url: `https://example.com/callback`,
 
-        //TODO: Update this to the actual return URL what eva nati
+        //TODO: Update this to the actual return URL what eva native will use
         return_url: `${process.env.FRONTEND_URL}/payment-success`,
         customization: {
           title: "Order Payment",
@@ -76,6 +73,8 @@ export const initiatePayment = async (req, res) => {
 
 const checkoutUrl = chapaRes.data?.data?.checkout_url;
 
+
+//what if chapa's owner stay in prison for 100 years?
 if (!checkoutUrl) {
   await t.rollback();
   return res.status(500).json({ message: "Failed to get checkout URL from Chapa" });
@@ -124,12 +123,17 @@ export const verifyPayment = async (req, res) => {
 
     if (status === "success") {
       // Update payment and order
-      payment.status = "paid";
-      await payment.save({ transaction: t });
+      await payment.update({
+        status: "paid",
+        paidAt: new Date()
+      }, { transaction: t });
+      
+      console.log("Payment verified: ",JSON.stringify({ status: payment.status, paidAt: payment.paidAt }, null, 2));
 
       const order = await Order.findByPk(payment.orderId, { transaction: t });
       if (order) {
         order.status = "paid";
+        console.log("Order verified: ",JSON.stringify(order.status, null, 2));
         await order.save({ transaction: t });
       }
 
