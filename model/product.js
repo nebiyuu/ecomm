@@ -21,6 +21,7 @@ const Product = sequelize.define("Product", {
   images: { 
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: false,
+    field: 'images',
     defaultValue: []
   },
   ownerId: {

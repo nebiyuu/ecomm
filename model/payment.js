@@ -1,63 +1,52 @@
 import { DataTypes } from "sequelize";
 import sequelize from "./index.js";
-import Buyer from "./buyer.js";
 import Order from "./order.js";
 
 const Payment = sequelize.define(
   "Payment",
   {
-    id: { 
-      type: DataTypes.UUID, 
-      primaryKey: true, 
-      allowNull: false,
-      defaultValue: DataTypes.UUIDV4 
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
     },
+
     orderId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: { model: "orders", key: "id" },
       field: "order_id",
     },
-    buyerId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: { model: "buyers", key: "id" },
-      field: "buyer_id",
-    },
-    provider: {
-      type: DataTypes.STRING(20),
-      allowNull: false,
-    },
-    txRef: {
-      type: DataTypes.STRING(100),
-      allowNull: false,
-      unique: true,
-      field: "tx_ref",
-    },
-    providerTxId: {
-      type: DataTypes.STRING(100),
-      allowNull: true,
-      field: "provider_tx_id",
-    },
+
     amount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
+
     currency: {
-      type: DataTypes.STRING(3),
-      allowNull: false,
-      defaultValue: 'ETB',
+      type: DataTypes.STRING,
+      defaultValue: "ETB",
     },
-    status: {
-      type: DataTypes.ENUM("PENDING", "SUCCESS", "FAILED"),
+
+    chapaTxRef: {
+      type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: "PENDING",
+      unique: true,
+      field: "chapa_tx_ref",
     },
-    rawResponse: {
-      type: DataTypes.JSONB,
+
+    chapaCheckoutUrl: {
+      type: DataTypes.TEXT,
       allowNull: true,
-      field: "raw_response",
+      field: "chapa_checkout_url",
     },
+
+    status: {
+      type: DataTypes.ENUM("pending", "success", "failed", "refunded"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+
     paidAt: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -70,19 +59,13 @@ const Payment = sequelize.define(
     underscored: true,
     indexes: [
       { fields: ["order_id"] },
-      { fields: ["buyer_id"] },
       { fields: ["status"] },
-      { fields: ["tx_ref"] },
-      { fields: ["provider"] },
-      { fields: ["created_at"] }
-    ]
+      { fields: ["chapa_tx_ref"] },
+    ],
   }
 );
 
-// Associations
-Buyer.hasMany(Payment, { foreignKey: "buyerId", as: "payments" });
-Payment.belongsTo(Buyer, { foreignKey: "buyerId", as: "buyer" });
-
+/* Relationships */
 Order.hasMany(Payment, { foreignKey: "orderId", as: "payments" });
 Payment.belongsTo(Order, { foreignKey: "orderId", as: "order" });
 
