@@ -521,7 +521,113 @@ profilePic: &lt;file&gt;          // required image file field</pre>
     </ul>
   </div>
 
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/orders/seller/:sellerId</code> <span class="pill protected">JWT</span></div>
+    <div>Get all orders for products belonging to a specific seller. Uses INNER JOIN to filter orders by product ownership.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>sellerId</code> — Seller/User ID (required)</li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>status</code> — Filter by order status ("pending", "trial_active", "paid", "returned", "cancelled", "return_requested", "disputed")</li>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "total": number, "page": number, "limit": number, "orders": [...] }</code></li>
+      <li>500: <code>{ "message": "Error fetching seller orders", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <h2>Returns</h2>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/returns</code> <span class="pill protected">JWT (Buyer)</span></div>
+    <div>Initiate a return for an order. Only allowed during active trial period. Creates return record with QR token and updates order status.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Body (JSON):
+<pre>{
+  "orderId": "UUID (required)",
+  "hasDefect": "boolean (optional)",
+  "defectDescription": "string (required if hasDefect is true)",
+  "defectPhotoUrl": "string (optional, required if hasDefect is true)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>201: <code>{ "message": "Return initiated successfully", "return": { id, orderId, returnToken, status, requestedAt, expiresAt, hasDefect } }</code></li>
+      <li>400: <code>{ "message": "Order ID is required | Order not found | Not authorized to return this order | Return can only be initiated during trial period | Trial period has expired | Return already initiated for this order" }</code></li>
+      <li>403: <code>{ "message": "Not authorized to return this order" }</code></li>
+      <li>404: <code>{ "message": "Order not found" }</code></li>
+      <li>500: <code>{ "message": "Error initiating return", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <h2>Admin</h2>
+
+  <div class="endpoint">
+    <div><span class="method">PATCH</span> <code>/api/admin/sellers/:id/approve</code> <span class="pill protected">JWT (Admin)</span></div>
+    <div>Approve a seller account. Only admins can approve sellers.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Seller ID</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "message": "Seller approved successfully" }</code></li>
+      <li>401: <code>{ "message": "Unauthorized" }</code></li>
+      <li>403: <code>{ "message": "Forbidden" }</code></li>
+      <li>404: <code>{ "message": "Seller not found" }</code></li>
+      <li>500: <code>{ "message": "Error approving seller", "error": "..." }</code></li>
+    </ul>
+  </div>
+
   <h2>Rental Products</h2>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rentals</code> <span class="pill auth">Public</span></div>
+    <div>Lists all available rental products with pagination.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": [...], "pagination": {...} }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving rentables", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rentals/:id</code> <span class="pill auth">Public</span></div>
+    <div>Get a specific rental product by ID.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Params: <code>id</code> — Product ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": {...} }</code></li>
+      <li>404: <code>{ "success": false, "message": "Rentable not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error retrieving rentable", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/rentals</code> <span class="pill protected">JWT (Seller/Admin)</span></div>
     <div>Creates a new product and rental listing in a single transaction. Supports image uploads.</div>
     <h4>Request</h4>
     <ul>

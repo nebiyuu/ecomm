@@ -10,6 +10,7 @@ import trailRoutes from "./routes/trailRoutes.js";
 import rentRoutes from "./routes/rentRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRouter.js";
+import returnRoutes from "./routes/returnRoutes.js";
 
 
 dotenv.config();
@@ -26,6 +27,7 @@ app.use("/api/products", trailRoutes);
 app.use("/api/rentals", rentRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/returns", returnRoutes);
 app.get("/health", (req, res) => res.send("ok"));
 
 

@@ -63,7 +63,7 @@ export const initiatePayment = async (req, res) => {
       return res.status(400).json({ message: "orderId required" });
     }
 
-    // Include Product and TrialPolicy to check for trial status
+    // Fetch order with product and trial policy
     const order = await Order.findByPk(orderId, {
       include: [{ 
         model: Product,
@@ -86,19 +86,23 @@ export const initiatePayment = async (req, res) => {
     const buyer = await order.getBuyer({ transaction: t });
     const product = order.product;
     const trialPolicy = product?.trialPolicy;
-    const hasActiveTrial = trialPolicy && trialPolicy.active;
 
-    // Find the owner (seller)
-    const owner = await User.findByPk(product.ownerId, { transaction: t });
+    // Check if product has trial policy
+    const hasActiveTrial = !!trialPolicy;
 
-    // Validate subaccount only if it's NOT a trial
-    if (!hasActiveTrial && (!owner || !owner.chapaSubaccountId)) {
-      await t.rollback();
-      return res.status(400).json({ message: "Seller subaccount not configured" });
+    // Only need seller subaccount for normal sales (no trial)
+    let owner;
+    if (!hasActiveTrial) {
+      owner = await User.findByPk(product.ownerId, { transaction: t });
+      if (!owner || !owner.chapaSubaccountId) {
+        await t.rollback();
+        return res.status(400).json({ message: "Seller subaccount not configured" });
+      }
     }
 
     const txRef = await chapa.genTxRef();
-    
+
+    // Create payment record
     await Payment.create({
       orderId: order.id,
       chapaTxRef: txRef,
@@ -107,14 +111,14 @@ export const initiatePayment = async (req, res) => {
       status: "pending",
     }, { transaction: t });
 
-    // Prepare Chapa Payload
+    // Build Chapa payment payload
     const chapaPayload = {
       amount: Number(order.totalPrice),
       currency: "ETB",
       email: buyer.email,
       first_name: buyer.firstName,
       last_name: buyer.lastName,
-      phone_number: buyer.phone || "0911111111",
+      phone_number: buyer.phoneNumber || "0911111111",
       tx_ref: txRef,
       callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verify`,
       return_url: `${process.env.FRONTEND_URL}/orders/${order.id}`,
@@ -124,15 +128,16 @@ export const initiatePayment = async (req, res) => {
       }
     };
 
-    // If NOT a trial, add the subaccount object for splitting
+    // Add subaccount split only for normal sales (no trial)
     if (!hasActiveTrial) {
       chapaPayload.subaccounts = {
-        id: owner.chapaSubaccountId, // Ensure this is the Chapa ID (SUB_...)
+        id: owner.chapaSubaccountId,
         split_type: "percentage",
-        split_value: 5, // 5% platform commission (Seller gets 95%)
+        split_value: 5,
       };
     }
 
+    // Initialize payment with Chapa
     const chapaRes = await axios.post(
       "https://api.chapa.co/v1/transaction/initialize",
       chapaPayload,
@@ -152,38 +157,44 @@ export const initiatePayment = async (req, res) => {
     }
 
     await t.commit();
-    return res.status(200).json({ checkoutUrl, hasTrial: hasActiveTrial });
+    return res.status(200).json({ 
+      checkoutUrl, 
+      hasTrial: hasActiveTrial 
+    });
 
   } catch (err) {
-    if (t) await t.rollback();
+    await t.rollback();
     
-    // This will print the EXACT reason Chapa is rejecting the request
-    if (err.response && err.response.data) {
+    if (err.response?.data) {
       console.error("❌ Chapa API Error:", err.response.data);
     } else {
       console.error("❌ Payment Error:", err.message);
     }
 
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: "Payment initiation failed", 
       error: err.response?.data?.message || err.message 
     });
   }
 };
 
+
+
 export const verifyPayment = async (req, res) => {
   const t = await sequelize.transaction();
   
   try {
-    const { tx_ref } = req.query;
-    
-    if (!tx_ref) {
+    console.log("Full query params:", req.query);
+    console.log("Full URL:", req.originalUrl);
+    const { txRef } = req.body;
+    console.log("Extracted txRef:", txRef);
+    if (!txRef) {
       await t.rollback();
       return res.status(400).json({ message: "Transaction reference required" });
     }
 
     const payment = await Payment.findOne({ 
-      where: { chapaTxRef: tx_ref },
+      where: { chapaTxRef: txRef },
       include: [{ 
         model: Order, 
         as: 'order',
@@ -211,7 +222,7 @@ export const verifyPayment = async (req, res) => {
 
     // Verify with Chapa
     const chapaVerify = await axios.get(
-      `https://api.chapa.co/v1/transaction/verify/${tx_ref}`,
+      `https://api.chapa.co/v1/transaction/verify/${txRef}`,
       { 
         headers: { 
           Authorization: `Bearer ${process.env.chapa_Secret_key}` 
@@ -231,31 +242,37 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    const order = payment.order;
-    const product = order.product;
-    const trialPolicy = product.trialPolicy;
-    const hasActiveTrial = trialPolicy && !trialPolicy.active;
+const order = payment.order;
+const product = order.product;
+const trialPolicy = product.trialPolicy;
+const hasTrialPolicy = !!trialPolicy;
 
-    payment.paidAt = new Date();
+payment.paidAt = new Date();
 
-    if (hasActiveTrial) {
-      // TRIAL SALE - money in YOUR escrow account
-      const trialStart = new Date();
-      const trialEnd = new Date(trialStart);
-      trialEnd.setDate(trialEnd.getDate() + trialPolicy.trial_days);
-      
-      payment.status = 'held_in_escrow';
-      order.status = 'trial_active';
-      order.trialStartedAt = trialStart;
-      order.trialEndsAt = trialEnd;
-      
-    } else {
-      // NORMAL SALE - money already split to seller's subaccount by Chapa
-      payment.status = 'released_to_seller';
-      order.status = 'paid';
-      order.completedAt = new Date();
-      order.moneyReleasedTo = product.ownerId;
-    }
+if (hasTrialPolicy) {
+  // TRIAL SALE - money in escrow, mark trial as active
+  const trialStart = new Date();
+  const trialEnd = new Date(trialStart);
+  trialEnd.setDate(trialEnd.getDate() + trialPolicy.trial_days);
+  
+  payment.status = 'held_in_escrow';
+  order.status = 'trial_active';
+  order.trialStartedAt = trialStart;
+  order.trialEndsAt = trialEnd;
+  
+  // Mark trial policy as active (product is now in trial)
+  trialPolicy.active = true;
+  await trialPolicy.save({ transaction: t });
+  
+  
+
+} else {
+  // NORMAL SALE
+  payment.status = 'released_to_seller';
+  order.status = 'paid';
+  order.completedAt = new Date();
+  order.moneyReleasedTo = product.ownerId;
+}
     
     await payment.save({ transaction: t });
     await order.save({ transaction: t });
