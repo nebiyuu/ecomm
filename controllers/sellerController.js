@@ -11,27 +11,25 @@ export const registerSeller = async (req, res) => {
   const { firstName, lastName, username, email, password, address, phoneNumber, storeName } = req.body;
 
   try {
-    console.log("req.body:", req.body);
-console.log("req.files:", req.files);
-
-
-    if (!req.files || !req.files.license)
-      return res.status(400).json({ message: "License image required" });
-
-    if (!req.files || !req.files.profilePic)
-      return res.status(400).json({ message: "Profile image required" });
+    // 1. Immediate Validation
+    if (!req.files?.license || !req.files?.profilePic) {
+      return res.status(400).json({ message: "License and Profile images are required" });
+    }
 
     const licenseUrl = req.files.license[0].path;
     const profilePicUrl = req.files.profilePic[0].path;
 
-    // Check if username/email already exists in Users
-    const existingUser = await User.findOne({ where: { username } });
-    if (existingUser)
-      return res.status(400).json({ message: "Username already taken" });
+    // 2. Check existence early
+    const existingUser = await User.findOne({ where: { email } }); // Better to check email too
+    if (existingUser) return res.status(400).json({ message: "User already exists" });
 
-    // 1️⃣ Create User first
-    const userId = uuidv4();
+    // 3. Heavy lifting (Hashing)
     const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // 4. Database Operations
+    const userId = uuidv4();
     const newUser = await User.create({
       id: userId,
       username,
@@ -41,56 +39,40 @@ console.log("req.files:", req.files);
       profilePic: profilePicUrl,
     });
 
-    // 2️⃣ Create Seller profile linked to User
-    const sellerId = uuidv4();
     const newSeller = await Seller.create({
-      id: sellerId,
+      id: uuidv4(),
       firstName,
       lastName,
       phoneNumber,
       storeName,
       username,
       email,
-      password: hashedPassword,
+      password: hashedPassword, // Note: Usually, you don't need the password in BOTH tables
       address,
       license: licenseUrl,
       role: "seller",
-      userId: newUser.id, // Link to User
+      userId: newUser.id,
       emailVerified: false,
       profilePic: profilePicUrl,
+      emailOtpHash: otpHash,
+      emailOtpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      emailOtpAttempts: 0
     });
 
-    // 3️⃣ Generate OTP
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    const otpHash = await bcrypt.hash(otp, 10);
-    newSeller.emailOtpHash = otpHash;
-    newSeller.emailOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    newSeller.emailOtpAttempts = 0;
-    await newSeller.save();
+    // 5. Fire and Forget Email (Don't 'await' this)
+    const { text, html } = otpEmailTemplate({ name: firstName, otp });
+    sendMail({ to: email, subject: "Verify your email", text, html })
+      .catch(err => console.error("Background Email Error:", err));
 
-    const { text, html } = otpEmailTemplate({ name: newSeller.firstName, otp });
-    await sendMail({ to: newUser.email, subject: "Verify your email", text, html });
-
-    res.status(201).json({
-      message: "Seller registered. OTP sent to email for verification",
-      seller: {
-        id: newSeller.id,
-        firstName: newSeller.firstName,
-        lastName: newSeller.lastName,
-        phoneNumber: newSeller.phoneNumber,
-        storeName: newSeller.storeName,
-        username: newUser.username,
-        email: newUser.email,
-        address: newSeller.address,
-        approved: newSeller.approved,
-        emailVerified: newSeller.emailVerified,
-        profilePic: newUser.profilePic,
-        license: licenseUrl,
-      },
+    // 6. Respond immediately
+    return res.status(201).json({
+      message: "Seller registered. OTP sent to email.",
+      sellerId: newSeller.id
     });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error registering seller", error: error.message });
+    console.error("Registration Error:", error);
+    return res.status(500).json({ message: "Error registering seller" });
   }
 };
 
