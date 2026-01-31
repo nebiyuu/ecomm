@@ -143,7 +143,7 @@ const chapaRes = await axios.post(
     phone_number: buyer.phone || "0911111111",
     tx_ref: txRef,
     callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verify`,
-    return_url: `${process.env.FRONTEND_URL}/payment-success`,
+   // return_url: `${process.env.FRONTEND_URL}/payment-success`,
     customization: {
       title: "Order Payment",
       description: "Payment for order",
