@@ -1,5 +1,6 @@
 import { DataTypes } from "sequelize";
 import sequelize from "./index.js";
+import TrialPolicy from "./trailPolicies.js";
 
 const Product = sequelize.define("Product", {
   id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, defaultValue: DataTypes.UUIDV4 },
@@ -53,6 +54,17 @@ const Product = sequelize.define("Product", {
       isAvailable: true
     }
   }
+});
+
+// Association
+Product.hasOne(TrialPolicy, { 
+  foreignKey: 'product_id', 
+  as: 'trialPolicy',
+  sourceKey: 'id'
+});
+TrialPolicy.belongsTo(Product, { 
+  foreignKey: 'product_id', 
+  as: 'product'
 });
 
 export default Product;

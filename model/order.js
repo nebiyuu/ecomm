@@ -50,7 +50,9 @@ const Order = sequelize.define(
         "trial_active",
         "paid",
         "returned",
-        "cancelled"
+        "cancelled",
+        "return_requested",
+        "disputed"
       ),
       allowNull: false,
       defaultValue: "pending",

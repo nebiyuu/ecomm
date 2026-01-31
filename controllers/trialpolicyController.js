@@ -29,7 +29,7 @@ export const createTrialPolicy = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { trial_days, penalty_value, return_window_hours } = req.body;
+    const { trial_days, return_window_hours } = req.body;
 
     // Check if product exists
     const productCheck = await checkProductExists(id);
@@ -47,7 +47,6 @@ export const createTrialPolicy = async (req, res) => {
     const trialPolicy = await TrailPolicy.create({
       product_id: id,
       trial_days,
-      penalty_value,
       return_window_hours,
       active: true
     });
@@ -67,7 +66,7 @@ export const updateTrialPolicy = async (req, res) => {
   try {
 
     const { id } = req.params;
-    const { trial_days, penalty_value, return_window_hours } = req.body || {};
+    const { trial_days, return_window_hours } = req.body || {};
 
     //print the req
       console.log(req.body);
@@ -86,7 +85,6 @@ export const updateTrialPolicy = async (req, res) => {
     // Update trial policy
 await trialPolicy.update({
   trial_days: trial_days ?? trialPolicy.trial_days,
-  penalty_value: penalty_value ?? trialPolicy.penalty_value,
   return_window_hours: return_window_hours ?? trialPolicy.return_window_hours
 });
 

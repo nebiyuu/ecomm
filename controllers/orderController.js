@@ -179,6 +179,60 @@ export const listOrders = async (req, res) => {
   }
 };
 
+/**
+ * Get all orders for products belonging to a specific seller
+ * Uses INNER JOIN to filter orders by product ownership
+ * Supports pagination and status filtering
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getSellerOrders = async (req, res) => {
+  try {
+    const { sellerId } = req.params;
+    
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "10", 10), 1), 100);
+    const offset = (page - 1) * limit;
+    const { status } = req.query;
+
+    // Build the filter for the Order table (e.g., status)
+    const orderWhere = {};
+    if (status) orderWhere.status = status;
+
+    const { rows, count } = await Order.findAndCountAll({
+      where: orderWhere,
+      distinct: true, // Ensures count is accurate when using joins
+      include: [
+        { 
+          association: "product", 
+          attributes: ["id", "name", "images", "price", "ownerId"],
+          // This "where" filters the entire query to only include orders 
+          // where the product's ownerId matches the sellerId
+          where: { ownerId: sellerId },
+          required: true // This forces an INNER JOIN
+        },
+        { 
+          association: "buyer", 
+          attributes: ["id", "firstName", "lastName", "email", "phoneNumber"] 
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit
+    });
+
+    res.status(200).json({ 
+      total: count, 
+      page, 
+      limit, 
+      orders: rows 
+    });
+  } catch (err) {
+    console.error("Error fetching seller orders:", err);
+    res.status(500).json({ message: "Error fetching seller orders", error: err.message });
+  }
+};
+
 export const deleteOrder = async (req, res) => {
   try {
     const { id } = req.params;

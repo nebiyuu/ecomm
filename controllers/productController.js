@@ -40,22 +40,16 @@ const upsertTrialPolicyForProduct = async (productId, trialPolicyPayload) => {
     throw err;
   }
 
-  const { trialDays, penaltyType, penaltyValue, returnWindowHours } = parsedTrialPolicy;
+  const { trialDays, returnWindowHours } = parsedTrialPolicy;
 
-  if (!trialDays || !penaltyValue || !returnWindowHours) {
-    const err = new Error('Trial policy must include trialDays, penaltyType, penaltyValue, and returnWindowHours');
+  if (!trialDays || !returnWindowHours) {
+    const err = new Error('Trial policy must include trialDays and returnWindowHours');
     err.statusCode = 400;
     throw err;
   }
 
   if (isNaN(trialDays) || trialDays <= 0) {
     const err = new Error('trialDays must be a positive number');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (isNaN(penaltyValue) || penaltyValue < 0) {
-    const err = new Error('penaltyValue must be a non-negative number');
     err.statusCode = 400;
     throw err;
   }
@@ -71,16 +65,12 @@ const upsertTrialPolicyForProduct = async (productId, trialPolicyPayload) => {
   if (existingPolicy) {
     await existingPolicy.update({
       trial_days: parseInt(trialDays),
-      penalty_type: penaltyType,
-      penalty_value: parseFloat(penaltyValue),
       return_window_hours: parseInt(returnWindowHours)
     });
   } else {
     await TrailPolicy.create({
       product_id: productId,
       trial_days: parseInt(trialDays),
-      penalty_type: penaltyType,
-      penalty_value: parseFloat(penaltyValue),
       return_window_hours: parseInt(returnWindowHours),
       active: true
     });
@@ -255,12 +245,12 @@ const createProduct = async (req, res) => {
       }
       
       // Validate trial policy fields
-      const { trialDays, penaltyValue, returnWindowHours } = parsedTrialPolicy;
+      const { trialDays, returnWindowHours } = parsedTrialPolicy;
       
-      if (!trialDays || !penaltyValue || !returnWindowHours) {
+      if (!trialDays || !returnWindowHours) {
         return res.status(400).json({
           success: false,
-          message: 'Trial policy must include trialDays, penaltyType, penaltyValue, and returnWindowHours'
+          message: 'Trial policy must include trialDays and returnWindowHours'
         });
       }
       
@@ -268,13 +258,6 @@ const createProduct = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'trialDays must be a positive number'
-        });
-      }
-      
-      if (isNaN(penaltyValue) || penaltyValue < 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'penaltyValue must be a non-negative number'
         });
       }
       
@@ -288,7 +271,6 @@ const createProduct = async (req, res) => {
       await TrailPolicy.create({
         product_id: product.id,
         trial_days: parseInt(trialDays),
-        penalty_value: parseFloat(penaltyValue),
         return_window_hours: parseInt(returnWindowHours)
       });
     }
