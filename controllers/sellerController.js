@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import Seller from "../model/seller.js";
 import User from "../model/user.js";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";     
 import { v4 as uuidv4 } from "uuid";
 import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
 
@@ -9,6 +9,7 @@ import { sendMail, otpEmailTemplate } from "../utils/mailer.js";
 
 export const registerSeller = async (req, res) => {
   const { firstName, lastName, username, email, password, address, phoneNumber, storeName } = req.body;
+
 
   try {
     // 1. Immediate Validation

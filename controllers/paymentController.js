@@ -57,16 +57,19 @@ export const initiatePayment = async (req, res) => {
   
   try {
     const { orderId } = req.body;
+
     if (!orderId) {
       await t.rollback();
       return res.status(400).json({ message: "orderId required" });
     }
 
+    // Include Product and TrialPolicy to check for trial status
     const order = await Order.findByPk(orderId, {
       include: [{ 
-        model: Product, 
+        model: Product,
+        as: 'product',
         include: [{ model: TrialPolicy, as: 'trialPolicy' }] 
-      }], 
+      }],
       transaction: t 
     });
     
@@ -75,28 +78,23 @@ export const initiatePayment = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    if (order.status !== "pending") {
+    if (!["pending", "trial_active"].includes(order.status)) {
       await t.rollback();
-      return res.status(400).json({ 
-        message: "Order already processed or not payable" 
-      });
+      return res.status(400).json({ message: "Order not payable" });
     }
 
     const buyer = await order.getBuyer({ transaction: t });
-    const product = order.Product;
-    const trialPolicy = product.trialPolicy;
+    const product = order.product;
+    const trialPolicy = product?.trialPolicy;
     const hasActiveTrial = trialPolicy && trialPolicy.active;
 
-    // Only need seller info for normal sales
-    let owner;
-    if (!hasActiveTrial) {
-      owner = await User.findByPk(product.ownerId, { transaction: t });
-      if (!owner || !owner.chapaSubaccountId) {
-        await t.rollback();
-        return res.status(400).json({ 
-          message: "Seller subaccount not configured" 
-        });
-      }
+    // Find the owner (seller)
+    const owner = await User.findByPk(product.ownerId, { transaction: t });
+
+    // Validate subaccount only if it's NOT a trial
+    if (!hasActiveTrial && (!owner || !owner.chapaSubaccountId)) {
+      await t.rollback();
+      return res.status(400).json({ message: "Seller subaccount not configured" });
     }
 
     const txRef = await chapa.genTxRef();
@@ -108,28 +106,32 @@ export const initiatePayment = async (req, res) => {
       currency: "ETB",
       status: "pending",
     }, { transaction: t });
-    
-    // Build Chapa request payload
+
+    // Prepare Chapa Payload
     const chapaPayload = {
       amount: Number(order.totalPrice),
       currency: "ETB",
       email: buyer.email,
       first_name: buyer.firstName,
       last_name: buyer.lastName,
+      phone_number: buyer.phone || "0911111111",
       tx_ref: txRef,
-      callback_url: `${process.env.API_URL}/api/payments/verify`,
+      callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verify`,
       return_url: `${process.env.FRONTEND_URL}/orders/${order.id}`,
+      customization: {
+        title: "Order Payment",
+        description: `Payment for ${product.name}`,
+      }
     };
 
-    // Only add subaccount split for NORMAL sales (no trial)
+    // If NOT a trial, add the subaccount object for splitting
     if (!hasActiveTrial) {
       chapaPayload.subaccounts = {
-        id: owner.chapaSubaccountId,
+        id: owner.chapaSubaccountId, // Ensure this is the Chapa ID (SUB_...)
         split_type: "percentage",
-        split_value: 0.05, // 5% platform commission, 95% to seller
+        split_value: 5, // 5% platform commission (Seller gets 95%)
       };
     }
-    // For trial sales, subaccounts is omitted - money stays in YOUR account
 
     const chapaRes = await axios.post(
       "https://api.chapa.co/v1/transaction/initialize",
@@ -143,25 +145,28 @@ export const initiatePayment = async (req, res) => {
     );
 
     const checkoutUrl = chapaRes.data?.data?.checkout_url;
+
     if (!checkoutUrl) {
       await t.rollback();
-      return res.status(500).json({ 
-        message: "Failed to get checkout URL from Chapa" 
-      });
+      return res.status(500).json({ message: "Failed to get checkout URL" });
     }
 
     await t.commit();
-    return res.status(200).json({ 
-      checkoutUrl,
-      hasTrial: hasActiveTrial 
-    });
+    return res.status(200).json({ checkoutUrl, hasTrial: hasActiveTrial });
 
   } catch (err) {
     if (t) await t.rollback();
-    console.error("Payment initiation error:", err);
+    
+    // This will print the EXACT reason Chapa is rejecting the request
+    if (err.response && err.response.data) {
+      console.error("❌ Chapa API Error:", err.response.data);
+    } else {
+      console.error("❌ Payment Error:", err.message);
+    }
+
     res.status(500).json({ 
       message: "Payment initiation failed", 
-      error: err.message 
+      error: err.response?.data?.message || err.message 
     });
   }
 };
@@ -181,8 +186,10 @@ export const verifyPayment = async (req, res) => {
       where: { chapaTxRef: tx_ref },
       include: [{ 
         model: Order, 
+        as: 'order',
         include: [{ 
           model: Product, 
+          as: 'product',
           include: [{ model: TrialPolicy, as: 'trialPolicy' }] 
         }] 
       }],
@@ -224,10 +231,10 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    const order = payment.Order;
-    const product = order.Product;
+    const order = payment.order;
+    const product = order.product;
     const trialPolicy = product.trialPolicy;
-    const hasActiveTrial = trialPolicy && trialPolicy.active;
+    const hasActiveTrial = trialPolicy && !trialPolicy.active;
 
     payment.paidAt = new Date();
 
