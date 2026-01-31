@@ -17,7 +17,7 @@ const sequelize = new Sequelize(
   }
 );
 
-// ⚙️ TEMP: Update schema to match models
+//  TEMP: Update schema to match models
 sequelize
   .sync({ alter: true })
   .then(async () => {
