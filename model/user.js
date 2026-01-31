@@ -8,6 +8,7 @@ id: {type: DataTypes.UUID,primaryKey: true,allowNull: false,defaultValue: DataTy
   password: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.STRING, allowNull: false, defaultValue: "buyer" },
   profilePic: { type: DataTypes.STRING, allowNull: true },
+  chapaSubaccountId: { type: DataTypes.STRING, allowNull: true },
 }, {
   tableName: "users",
   timestamps: true,

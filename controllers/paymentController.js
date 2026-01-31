@@ -4,6 +4,75 @@ import Order from "../model/order.js";
 import Payment from "../model/payment.js";
 import chapa from "../config/chapa.js";
 import sequelize from "../model/index.js";
+import Product from "../model/product.js";
+import Seller from "../model/seller.js";
+
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import User from "../model/user.js";
+
+export const approveSeller = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const seller = await Seller.findByPk(id);
+    if (!seller) return res.status(404).json({ message: "Seller not found" });
+
+    seller.approved = true;
+    await seller.save();
+
+    // Optionally reflect in matching user record if present
+    const user = await User.findOne({ where: { email: seller.email } });
+    if (user) {
+      if (!user.role) user.role = "seller";
+      await user.save();
+    }
+
+    return res.status(200).json({
+      message: "Seller approved",
+      seller: { id: seller.id, username: seller.username, email: seller.email, approved: seller.approved },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Error approving seller", error: err.message });
+  }
+};
+
+// Create Chapa subaccount for Tellbirr
+export const createChapaSubaccount = async (sellerData) => {
+  try {
+    const response = await axios.post(
+      "https://api.chapa.co/v1/subaccount",
+      {
+        business_name: sellerData.businessName || sellerData.username,
+        account_name: sellerData.firstName,
+        bank_code: 855, // Tellbirr
+        account_number: sellerData.phoneNumber,
+        split_type: "percentage", // or "flat"
+        split_value: 0.02, // 2% commission - adjust as needed
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    return {
+      success: true,
+      subaccountId: response.data.data.subaccount_id,
+      data: response.data.data,
+    };
+  } catch (error) {
+    console.error("Chapa subaccount error:", error.response?.data || error.message);
+    return {
+      success: false,
+      error: error.response?.data?.message || error.message,
+    };
+  }
+};
+
+
 
 export const initiatePayment = async (req, res) => {
   const t = await sequelize.transaction();
@@ -17,6 +86,7 @@ export const initiatePayment = async (req, res) => {
     }
 
     const order = await Order.findByPk(orderId, { transaction: t });
+    
     if (!order) {
       await t.rollback();
       return res.status(404).json({ message: "Order not found" });
@@ -29,8 +99,27 @@ export const initiatePayment = async (req, res) => {
 
     const buyer = await order.getBuyer({ transaction: t });
 
-    console.log("firstname: ", buyer.firstName,"email: " , buyer.email);
-    const txRef = await chapa.genTxRef(); // result: TX-JHBUVLM7HYMSWDA
+    // Get product and owner/seller
+    const product = await Product.findByPk(order.productId, { transaction: t });
+    console.log("Order productIdddd:", order.productId);
+    //console.log("Product found:", product);
+
+    if (!product || !product.ownerId) {
+      await t.rollback();
+      return res.status(400).json({ message: "Product or owner not found" });
+    }
+
+    // Find the owner (seller) - subaccount is now on user
+    const owner = await User.findByPk(product.ownerId, { transaction: t });
+    console.log("Owner found:");
+    console.log("Owner chapaSubaccountId:", owner?.chapaSubaccountId);
+
+    if (!owner || !owner.chapaSubaccountId) {
+      await t.rollback();
+      return res.status(400).json({ message: "Seller subaccount not configured" });
+    }
+
+    const txRef = await chapa.genTxRef();
     console.log("txRef: ", txRef);
 
     const newPayment = await Payment.create({
@@ -41,136 +130,56 @@ export const initiatePayment = async (req, res) => {
       status: "pending",
     }, { transaction: t });
 
-    console.log("Payment created: ",JSON.stringify(newPayment, null, 2));
-
-
-    console.log("Environment URLs - BACKEND_URL:", process.env.BACKEND_URL, "FRONTEND_URL:", process.env.FRONTEND_URL);
+    console.log("Payment created: ");
     
-    // initiate payment with chapa
-    const chapaRes = await axios.post(
-      "https://api.chapa.co/v1/transaction/initialize",
-      {
-        amount: Number(order.totalPrice),
-        currency: "ETB",
-        email: buyer.email,
-        first_name: buyer.firstName,
-        last_name: buyer.lastName,
-        phone_number: buyer.phone || "0911111111",
-        tx_ref: txRef,
-        callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/chapa-callback` ,
+const chapaRes = await axios.post(
+  "https://api.chapa.co/v1/transaction/initialize",
+  {
+    amount: Number(order.totalPrice), // Keep as number
+    currency: "ETB",
+    email: buyer.email,
+    first_name: buyer.firstName,
+    last_name: buyer.lastName,
+    phone_number: buyer.phone || "0911111111",
+    tx_ref: txRef,
+    callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verify`,
+    return_url: `${process.env.FRONTEND_URL}/payment-success`,
+    customization: {
+      title: "Order Payment",
+      description: "Payment for order",
+    },
+    subaccounts: {  // Object, not array
+      id: owner.chapaSubaccountId,
+      split_type: "percentage",
+      split_value: 0.05, // 5% commission
 
-        //TODO: Update this to the actual return URL what eva native will use
-        return_url:`${process.env.FRONTEND_URL}/payment-success` ,
-        customization: {
-          title: "Order Payment",
-          description: `Payment for order`,
-        },
-        meta: {
-          hide_receipt: "true",
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.chapa_Secret_key}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-const checkoutUrl = chapaRes.data?.data?.checkout_url;
-
-
-//what if chapa's owner stay in prison for 100 years?
-if (!checkoutUrl) {
-  await t.rollback();
-  return res.status(500).json({ message: "Failed to get checkout URL from Chapa" });
-}
-
-await t.commit();
-return res.status(200).json({ checkoutUrl });
-
-  } catch (err) {
-    console.log(err.response?.data || err.message); // <-- optional chaining
-    res.status(500).json({ message: "Payment initiation failed" });
+    },
+  },
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.chapa_Secret_key}`,
+      "Content-Type": "application/json",
+    },
   }
-};
+);
 
+console.log("chapa response");
+    const checkoutUrl = chapaRes.data?.data?.checkout_url;
 
-
-export const chapaCallback = async (req, res) => {
-  console.log("=== Chapa Callback Received ===");
-  console.log("Request body:", JSON.stringify(req.body, null, 2));
-  console.log("Request headers:", JSON.stringify(req.headers, null, 2));
-  
-  const t = await sequelize.transaction();
-
-  try {
-    const { tx_ref, status, reference } = req.body;
-
-    console.log("Extracted data - tx_ref:", tx_ref, "status:", status, "reference:", reference);
-
-    if (!tx_ref || !status) {
-      console.log("Missing required fields");
+    if (!checkoutUrl) {
       await t.rollback();
-      return res.status(400).json({ message: "tx_ref and status are required" });
+      return res.status(500).json({ message: "Failed to get checkout URL from Chapa" });
     }
 
-    const payment = await Payment.findOne({ 
-      where: { chapaTxRef: tx_ref }, 
-      transaction: t 
-    });
-
-    console.log("Found payment:", payment ? JSON.stringify({ id: payment.id, currentStatus: payment.status }) : "null");
-
-    if (!payment) {
-      console.log("Payment not found for tx_ref:", tx_ref);
-      await t.rollback();
-      return res.status(404).json({ message: "Payment not found" });
-    }
-
-    console.log("Processing status:", status);
-
-    if (status === "success") {
-      await payment.update({
-        status: "paid",
-        paidAt: new Date()
-      }, { transaction: t });
-
-      const order = await Order.findByPk(payment.orderId, { transaction: t });
-      if (order) {
-        order.status = "paid";
-        await order.save({ transaction: t });
-        console.log("Order updated to paid");
-      }
-
-      await t.commit();
-      console.log("Payment successfully marked as paid");
-      return res.status(200).json({ message: "Payment callback processed successfully" });
-    } else if (status === "failed") {
-      await payment.update({
-        status: "failed"
-      }, { transaction: t });
-
-      await t.commit();
-      console.log("Payment marked as failed");
-      return res.status(200).json({ message: "Payment marked as failed" });
-    } else {
-      await payment.update({
-        status: "pending"
-      }, { transaction: t });
-
-      await t.commit();
-      console.log("Payment status updated to:", status);
-      return res.status(200).json({ message: "Payment status updated" });
-    }
+    await t.commit();
+    return res.status(200).json({ checkoutUrl });
 
   } catch (err) {
     await t.rollback();
-    console.error("Chapa callback error:", err.response?.data || err.message);
-    res.status(500).json({ message: "Callback processing failed" });
+    console.log(err.response?.data || err.message);
+    res.status(500).json({ message: "Payment initiation failed", error: err.message });
   }
 };
-
 
 export const verifyPayment = async (req, res) => {
   const t = await sequelize.transaction();
