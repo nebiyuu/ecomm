@@ -6,36 +6,12 @@ import chapa from "../config/chapa.js";
 import sequelize from "../model/index.js";
 import Product from "../model/product.js";
 import Seller from "../model/seller.js";
+import TrialPolicy from "../model/trailPolicies.js";
 
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../model/user.js";
 
-export const approveSeller = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const seller = await Seller.findByPk(id);
-    if (!seller) return res.status(404).json({ message: "Seller not found" });
-
-    seller.approved = true;
-    await seller.save();
-
-    // Optionally reflect in matching user record if present
-    const user = await User.findOne({ where: { email: seller.email } });
-    if (user) {
-      if (!user.role) user.role = "seller";
-      await user.save();
-    }
-
-    return res.status(200).json({
-      message: "Seller approved",
-      seller: { id: seller.id, username: seller.username, email: seller.email, approved: seller.approved },
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Error approving seller", error: err.message });
-  }
-};
 
 // Create Chapa subaccount for Tellbirr
 export const createChapaSubaccount = async (sellerData) => {
@@ -74,114 +50,244 @@ export const createChapaSubaccount = async (sellerData) => {
 
 
 
+// controllers/paymentController.js
+
 export const initiatePayment = async (req, res) => {
   const t = await sequelize.transaction();
   
   try {
     const { orderId } = req.body;
-
     if (!orderId) {
       await t.rollback();
       return res.status(400).json({ message: "orderId required" });
     }
 
-    const order = await Order.findByPk(orderId, { transaction: t });
+    const order = await Order.findByPk(orderId, {
+      include: [{ 
+        model: Product, 
+        include: [{ model: TrialPolicy, as: 'trialPolicy' }] 
+      }], 
+      transaction: t 
+    });
     
     if (!order) {
       await t.rollback();
       return res.status(404).json({ message: "Order not found" });
     }
 
-    if (!["pending", "trial_active"].includes(order.status)) {
+    if (order.status !== "pending") {
       await t.rollback();
-      return res.status(400).json({ message: "Order not payable" });
+      return res.status(400).json({ 
+        message: "Order already processed or not payable" 
+      });
     }
 
     const buyer = await order.getBuyer({ transaction: t });
+    const product = order.Product;
+    const trialPolicy = product.trialPolicy;
+    const hasActiveTrial = trialPolicy && trialPolicy.active;
 
-    // Get product and owner/seller
-    const product = await Product.findByPk(order.productId, { transaction: t });
-    console.log("Order productIdddd:", order.productId);
-    //console.log("Product found:", product);
-
-    if (!product || !product.ownerId) {
-      await t.rollback();
-      return res.status(400).json({ message: "Product or owner not found" });
-    }
-
-    // Find the owner (seller) - subaccount is now on user
-    const owner = await User.findByPk(product.ownerId, { transaction: t });
-    console.log("Owner found:");
-    console.log("Owner chapaSubaccountId:", owner?.chapaSubaccountId);
-
-    if (!owner || !owner.chapaSubaccountId) {
-      await t.rollback();
-      return res.status(400).json({ message: "Seller subaccount not configured" });
+    // Only need seller info for normal sales
+    let owner;
+    if (!hasActiveTrial) {
+      owner = await User.findByPk(product.ownerId, { transaction: t });
+      if (!owner || !owner.chapaSubaccountId) {
+        await t.rollback();
+        return res.status(400).json({ 
+          message: "Seller subaccount not configured" 
+        });
+      }
     }
 
     const txRef = await chapa.genTxRef();
-    console.log("txRef: ", txRef);
-
-    const newPayment = await Payment.create({
+    
+    await Payment.create({
       orderId: order.id,
       chapaTxRef: txRef,
       amount: order.totalPrice,
       currency: "ETB",
       status: "pending",
     }, { transaction: t });
-
-    console.log("Payment created: ");
     
-const chapaRes = await axios.post(
-  "https://api.chapa.co/v1/transaction/initialize",
-  {
-    amount: Number(order.totalPrice), // Keep as number
-    currency: "ETB",
-    email: buyer.email,
-    first_name: buyer.firstName,
-    last_name: buyer.lastName,
-    phone_number: buyer.phone || "0911111111",
-    tx_ref: txRef,
-    callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verify`,
-   // return_url: `${process.env.FRONTEND_URL}/payment-success`,
-    customization: {
-      title: "Order Payment",
-      description: "Payment for order",
-    },
-    subaccounts: {  // Object, not array
-      id: owner.chapaSubaccountId,
-      split_type: "percentage",
-      split_value: 0.05, // 5% commission
+    // Build Chapa request payload
+    const chapaPayload = {
+      amount: Number(order.totalPrice),
+      currency: "ETB",
+      email: buyer.email,
+      first_name: buyer.firstName,
+      last_name: buyer.lastName,
+      tx_ref: txRef,
+      callback_url: `${process.env.API_URL}/api/payments/verify`,
+      return_url: `${process.env.FRONTEND_URL}/orders/${order.id}`,
+    };
 
-    },
-  },
-  {
-    headers: {
-      Authorization: `Bearer ${process.env.chapa_Secret_key}`,
-      "Content-Type": "application/json",
-    },
-  }
-);
+    // Only add subaccount split for NORMAL sales (no trial)
+    if (!hasActiveTrial) {
+      chapaPayload.subaccounts = {
+        id: owner.chapaSubaccountId,
+        split_type: "percentage",
+        split_value: 0.05, // 5% platform commission, 95% to seller
+      };
+    }
+    // For trial sales, subaccounts is omitted - money stays in YOUR account
 
-console.log("chapa response");
+    const chapaRes = await axios.post(
+      "https://api.chapa.co/v1/transaction/initialize",
+      chapaPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.chapa_Secret_key}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
     const checkoutUrl = chapaRes.data?.data?.checkout_url;
-
     if (!checkoutUrl) {
       await t.rollback();
-      return res.status(500).json({ message: "Failed to get checkout URL from Chapa" });
+      return res.status(500).json({ 
+        message: "Failed to get checkout URL from Chapa" 
+      });
     }
 
     await t.commit();
-    return res.status(200).json({ checkoutUrl });
+    return res.status(200).json({ 
+      checkoutUrl,
+      hasTrial: hasActiveTrial 
+    });
 
   } catch (err) {
-    await t.rollback();
-    console.log(err.response?.data || err.message);
-    res.status(500).json({ message: "Payment initiation failed", error: err.message });
+    if (t) await t.rollback();
+    console.error("Payment initiation error:", err);
+    res.status(500).json({ 
+      message: "Payment initiation failed", 
+      error: err.message 
+    });
   }
 };
 
 export const verifyPayment = async (req, res) => {
+  const t = await sequelize.transaction();
+  
+  try {
+    const { tx_ref } = req.query;
+    
+    if (!tx_ref) {
+      await t.rollback();
+      return res.status(400).json({ message: "Transaction reference required" });
+    }
+
+    const payment = await Payment.findOne({ 
+      where: { chapaTxRef: tx_ref },
+      include: [{ 
+        model: Order, 
+        include: [{ 
+          model: Product, 
+          include: [{ model: TrialPolicy, as: 'trialPolicy' }] 
+        }] 
+      }],
+      transaction: t 
+    });
+
+    if (!payment) {
+      await t.rollback();
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    if (payment.status !== 'pending') {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: "Payment already processed",
+        status: payment.status 
+      });
+    }
+
+    // Verify with Chapa
+    const chapaVerify = await axios.get(
+      `https://api.chapa.co/v1/transaction/verify/${tx_ref}`,
+      { 
+        headers: { 
+          Authorization: `Bearer ${process.env.chapa_Secret_key}` 
+        } 
+      }
+    );
+
+    const chapaStatus = chapaVerify.data?.status;
+    
+    if (chapaStatus !== 'success') {
+      payment.status = 'failed';
+      await payment.save({ transaction: t });
+      await t.commit();
+      return res.status(400).json({ 
+        message: "Payment verification failed", 
+        chapaStatus 
+      });
+    }
+
+    const order = payment.Order;
+    const product = order.Product;
+    const trialPolicy = product.trialPolicy;
+    const hasActiveTrial = trialPolicy && trialPolicy.active;
+
+    payment.paidAt = new Date();
+
+    if (hasActiveTrial) {
+      // TRIAL SALE - money in YOUR escrow account
+      const trialStart = new Date();
+      const trialEnd = new Date(trialStart);
+      trialEnd.setDate(trialEnd.getDate() + trialPolicy.trial_days);
+      
+      payment.status = 'held_in_escrow';
+      order.status = 'trial_active';
+      order.trialStartedAt = trialStart;
+      order.trialEndsAt = trialEnd;
+      
+    } else {
+      // NORMAL SALE - money already split to seller's subaccount by Chapa
+      payment.status = 'released_to_seller';
+      order.status = 'paid';
+      order.completedAt = new Date();
+      order.moneyReleasedTo = product.ownerId;
+    }
+    
+    await payment.save({ transaction: t });
+    await order.save({ transaction: t });
+
+    // Mark product unavailable
+    product.isAvailable = false;
+    await product.save({ transaction: t });
+
+    await t.commit();
+
+    return res.status(200).json({ 
+      message: "Payment verified successfully",
+      order: {
+        id: order.id,
+        status: order.status,
+        hasTrial: hasActiveTrial,
+        trialEndsAt: order.trialEndsAt,
+      },
+      payment: {
+        status: payment.status,
+        amount: payment.amount,
+      }
+    });
+    
+  } catch (err) {
+    if (t) await t.rollback();
+    console.error("Payment verification error:", err);
+    res.status(500).json({ 
+      message: "Payment verification failed", 
+      error: err.message 
+    });
+  }
+};
+
+
+
+
+
+export const verifyPaymentt = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {

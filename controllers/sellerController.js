@@ -11,13 +11,9 @@ export const registerSeller = async (req, res) => {
   const { firstName, lastName, username, email, password, address, phoneNumber, storeName } = req.body;
 
   try {
-    // 1. Immediate Validation
-    if (!req.files?.license || !req.files?.profilePic) {
-      return res.status(400).json({ message: "License and Profile images are required" });
-    }
-
-    const licenseUrl = req.files.license[0].path;
-    const profilePicUrl = req.files.profilePic[0].path;
+    // 1. Handle optional images
+    const licenseUrl = req.files?.license?.[0]?.path || null;
+    const profilePicUrl = req.files?.profilePic?.[0]?.path || null;
 
     // 2. Check existence early
     const existingUser = await User.findOne({ where: { email } }); // Better to check email too

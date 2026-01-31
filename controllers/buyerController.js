@@ -10,15 +10,10 @@ export const registerBuyer = async (req, res) => {
   try {
     const { firstName, lastName, username, email, phoneNumber, password } = req.body;
 
-    if (!req.file)
-      return res.status(400).json({ message: "Profile picture required" });
+    const profilePicUrl = req.file ? req.file.path : null;
 
     if (!firstName || !lastName || !username || !email || !phoneNumber || !password)
       return res.status(400).json({ message: "All fields required" });
-
-    const profilePicUrl = req.file.path; // Cloudinary URL
-
-    // 1️⃣ Check if user already exists
     const existingUser = await User.findOne({ where: { username } });
     if (existingUser)
       return res.status(400).json({ message: "Username already exists" });

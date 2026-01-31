@@ -22,11 +22,6 @@ const TrailPolicy = sequelize.define(
       type: DataTypes.INTEGER, 
       allowNull: false 
     },
-
-    penalty_value: { 
-      type: DataTypes.DECIMAL(10, 2), 
-      allowNull: false 
-    },
     return_window_hours: { 
       type: DataTypes.INTEGER, 
       allowNull: false 
