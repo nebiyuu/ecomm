@@ -20,8 +20,7 @@ const Return = sequelize.define(
     },
 
     returnToken: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.STRING,
       allowNull: false,
       field: "return_token",
       unique: true,

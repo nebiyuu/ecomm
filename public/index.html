@@ -570,6 +570,94 @@ profilePic: &lt;file&gt;          // required image file field</pre>
     </ul>
   </div>
 
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/returns/scan</code> <span class="pill protected">JWT (Seller)</span></div>
+    <div>Seller scans QR code to accept return or claim defect. Supports file upload for defect photos.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Content-Type: <code>multipart/form-data</code></li>
+      <li>Form fields:
+<pre>returnToken: "string (required)"
+action: "confirm | claim_defect (required)"
+defectDescription: "string (required if action=claim_defect)"
+defectPhoto: &lt;file&gt; (required if action=claim_defect)</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "message": "Return confirmed - Money released to buyer" | "Defect claim submitted - Dispute created for admin review" }</code></li>
+      <li>400: <code>{ "message": "Return token is required | Action must be 'confirm' or 'claim_defect' | Photo and description required for defect claim | Return request has expired" }</code></li>
+      <li>403: <code>{ "message": "Unauthorized: You are not the seller" }</code></li>
+      <li>404: <code>{ "message": "Invalid QR Code or Return not found" }</code></li>
+      <li>500: <code>{ "message": "Error processing return scan", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/returns/order/:orderId</code> <span class="pill protected">JWT</span></div>
+    <div>Get return details for a specific order. Only accessible by the order buyer or admins.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>orderId</code> — Order ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "return": { id, orderId, returnToken, status, requestedAt, expiresAt, scannedAt, defectPhotoUrl, defectDescription, createdAt, updatedAt, order } }</code></li>
+      <li>400: <code>{ "message": "Order ID is required" }</code></li>
+      <li>403: <code>{ "message": "Not authorized to view this return" }</code></li>
+      <li>404: <code>{ "message": "Return not found for this order" }</code></li>
+      <li>500: <code>{ "message": "Error fetching return", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/returns/seller/:sellerId</code> <span class="pill protected">JWT</span></div>
+    <div>Get all returns for products belonging to a specific seller with pagination and filtering.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>sellerId</code> — Seller ID (required)</li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>status</code> — Filter by return status ("pending", "confirmed", "defect_claimed", "expired")</li>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "total": number, "page": number, "limit": number, "returns": [...] }</code></li>
+      <li>400: <code>{ "message": "Seller ID is required" }</code></li>
+      <li>500: <code>{ "message": "Error fetching seller returns", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/returns/buyer/:buyerId</code> <span class="pill protected">JWT</span></div>
+    <div>Get all returns for a specific buyer with pagination and filtering.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>buyerId</code> — Buyer ID (required)</li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>status</code> — Filter by return status ("pending", "confirmed", "defect_claimed", "expired")</li>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "total": number, "page": number, "limit": number, "returns": [...] }</code></li>
+      <li>400: <code>{ "message": "Buyer ID is required" }</code></li>
+      <li>500: <code>{ "message": "Error fetching buyer returns", "error": "..." }</code></li>
+    </ul>
+  </div>
+
   <h2>Admin</h2>
 
   <div class="endpoint">

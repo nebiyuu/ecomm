@@ -20,8 +20,16 @@ const productStorage = new CloudinaryStorage({
     allowed_formats: ["jpg", "png", "jpeg", "webp"],
   },
 });
+const defaultpic = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "defaultedpics",
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+  },
+})
 
 const uploadProfile = multer({ storage: profileStorage });
 const uploadProduct = multer({ storage: productStorage });
+const uploadDefaultpic = multer({ storage: defaultpic });
 
-export { uploadProfile, uploadProduct };
+export { uploadProfile, uploadProduct, uploadDefaultpic };
