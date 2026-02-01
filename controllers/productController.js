@@ -131,10 +131,11 @@ const listProducts = async (req, res) => {
       ...product,
       trialPolicy: productsWithTrialPolicies[index]?.trialPolicy,
       rental: product.rental
-    }));
+    })).filter(product => !product.trialPolicy?.active);
+    
     return res.status(200).json({
       success: true,
-      count: products.length,
+      count: returnData.length,
       data: returnData
     });
   } catch (error) {
