@@ -88,59 +88,6 @@ export const registerBuyer = async (req, res) => {
 };
 
 
-export const verifyBuyerEmail = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ message: "email and otp required" });
-
-    const buyer = await Buyer.findOne({ where: { email } });
-    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
-    if (buyer.emailVerified) return res.status(200).json({ message: "Email already verified" });
-    if (!buyer.emailOtpHash || !buyer.emailOtpExpiresAt) return res.status(400).json({ message: "No OTP pending" });
-    if (buyer.emailOtpAttempts >= 5) return res.status(429).json({ message: "Too many attempts. Request a new OTP" });
-    if (new Date() > new Date(buyer.emailOtpExpiresAt)) return res.status(400).json({ message: "OTP expired" });
-
-    const match = await bcrypt.compare(otp, buyer.emailOtpHash);
-    if (!match) {
-      buyer.emailOtpAttempts += 1;
-      await buyer.save();
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
-
-    // OTP is correct, verify email
-    buyer.emailVerified = true;
-    buyer.emailOtpHash = null;
-    buyer.emailOtpExpiresAt = null;
-    buyer.emailOtpAttempts = 0;
-    await buyer.save({ validate: false });
-
-    // Generate JWT
-    const token = jwt.sign(
-      { id: buyer.id, username: buyer.username },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    return res.status(200).json({
-      message: "Email verified successfully",
-      token,
-      buyer: {
-        id: buyer.id,
-        firstName: buyer.firstName,
-        lastName: buyer.lastName,
-        username: buyer.username,
-        email: buyer.email,
-        phoneNumber: buyer.phoneNumber,
-        emailVerified: buyer.emailVerified,
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error verifying email", error: err.message });
-  }
-};
-
-
 export const resendBuyerOtp = async (req, res) => {
   try {
     const { email } = req.body;

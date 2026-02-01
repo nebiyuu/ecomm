@@ -29,10 +29,12 @@ export const loginUser = async (req, res) => {
     if (!validPass) return res.status(401).json({ message: "Invalid password" });
 
     // enforce email verification and approval based on role
+    let buyerId = null;
     if (user.role === "buyer") {
       const buyer = await Buyer.findOne({ where: { email: user.email } });
       if (!buyer || !buyer.emailVerified)
         return res.status(403).json({ message: "Email not verified" });
+      buyerId = buyer.id;
     } else if (user.role === "seller") {
       const seller = await Seller.findOne({ where: { email: user.email } });
       if (!seller) return res.status(404).json({ message: "Seller profile not found" });
@@ -42,8 +44,19 @@ export const loginUser = async (req, res) => {
         return res.status(403).json({ message: "Seller not approved yet" });
     }
 
+    const tokenPayload = { 
+      id: user.id, 
+      username: user.username, 
+      role: user.role 
+    };
+    
+    // Add buyerId for buyers to match order authorization
+    if (buyerId) {
+      tokenPayload.buyerId = buyerId;
+    }
+
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      tokenPayload,
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -143,8 +156,19 @@ export const verifyUserEmail = async (req, res) => {
       await user.save();
     }
 
+    const tokenPayload = { 
+      id: user.id, 
+      username: user.username, 
+      role: user.role 
+    };
+    
+    // Add buyerId for buyers to match order authorization
+    if (role === 'buyer') {
+      tokenPayload.buyerId = entity.id;
+    }
+
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      tokenPayload,
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );

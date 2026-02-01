@@ -1,5 +1,6 @@
 import express from "express";
-import { registerBuyer, verifyBuyerEmail, resendBuyerOtp, listBuyers, getBuyer, updateBuyer, deleteBuyer } from "../controllers/buyerController.js";
+import { registerBuyer, resendBuyerOtp, listBuyers, getBuyer, updateBuyer, deleteBuyer } from "../controllers/buyerController.js";
+import { verifyUserEmail } from "../controllers/usercontroller.js";
 import { requireAuth, requireSameBuyer } from "../middlewares/auth.js";
 //import { loginBuyer } from "../controllers/buyerController.js";
 import { uploadProfile as upload } from "../config/upload.js";

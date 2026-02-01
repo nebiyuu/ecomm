@@ -34,6 +34,8 @@ export const createOrder = async (req, res) => {
 
     const totalPrice = parseFloat(product.price);
 
+    
+    
     const order = await Order.create(
       {
         id: uuidv4(),

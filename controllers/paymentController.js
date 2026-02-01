@@ -101,6 +101,7 @@ export const initiatePayment = async (req, res) => {
     }
 
     const txRef = await chapa.genTxRef();
+    console.log("Transaction reference:", txRef);
 
     // Create payment record
     await Payment.create({
@@ -298,7 +299,7 @@ if (hasTrialPolicy) {
     });
     
   } catch (err) {
-    if (t) await t.rollback();
+    if (t && !t.finished) await t.rollback();
     console.error("Payment verification error:", err);
     res.status(500).json({ 
       message: "Payment verification failed", 
