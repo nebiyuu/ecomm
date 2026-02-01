@@ -7,7 +7,6 @@ import sequelize from "../model/index.js";
 import Product from "../model/product.js";
 import Seller from "../model/seller.js";
 import TrialPolicy from "../model/trailPolicies.js";
-
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../model/user.js";
@@ -179,19 +178,33 @@ export const initiatePayment = async (req, res) => {
   }
 };
 
-
-
 export const verifyPayment = async (req, res) => {
   const t = await sequelize.transaction();
   
   try {
-    console.log("Full query params:", req.query);
+    console.log("📥 Callback received");
+    console.log("Query params:", req.query);
+    console.log("Body:", req.body);
+    console.log("Headers:", req.headers);
     console.log("Full URL:", req.originalUrl);
-    const { txRef } = req.body;
-    console.log("Extracted txRef:", txRef);
+    
+    // Chapa can send data in multiple ways - check all of them
+    const txRef = req.query.trx_ref || 
+                  req.query.tx_ref ||
+                  req.body.trx_ref || 
+                  req.body.tx_ref ||
+                  req.body.txRef ||
+                  req.params.txRef;
+    
+    console.log("✅ Extracted txRef:", txRef);
+    
     if (!txRef) {
       await t.rollback();
-      return res.status(400).json({ message: "Transaction reference required" });
+      console.error("❌ No transaction reference found");
+      return res.status(400).json({ 
+        message: "Transaction reference required",
+        received: { query: req.query, body: req.body }
+      });
     }
 
     const payment = await Payment.findOne({ 
@@ -222,6 +235,7 @@ export const verifyPayment = async (req, res) => {
     }
 
     // Verify with Chapa
+    console.log("🔍 Verifying with Chapa API...");
     const chapaVerify = await axios.get(
       `https://api.chapa.co/v1/transaction/verify/${txRef}`,
       { 
@@ -232,6 +246,9 @@ export const verifyPayment = async (req, res) => {
     );
 
     const chapaStatus = chapaVerify.data?.status;
+    const chapaData = chapaVerify.data?.data;
+    
+    console.log("📊 Chapa verification response:", JSON.stringify(chapaVerify.data, null, 2));
     
     if (chapaStatus !== 'success') {
       payment.status = 'failed';
@@ -243,53 +260,53 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-const order = payment.order;
-const product = order.product;
-const trialPolicy = product.trialPolicy;
-const hasTrialPolicy = !!trialPolicy;
+    const order = payment.order;
+    const product = order.product;
+    const trialPolicy = product.trialPolicy;
+    const hasTrialPolicy = !!trialPolicy;
 
-payment.paidAt = new Date();
+    payment.paidAt = new Date();
 
-if (hasTrialPolicy) {
-  // TRIAL SALE - money in escrow, mark trial as active
-  const trialStart = new Date();
-  const trialEnd = new Date(trialStart);
-  trialEnd.setDate(trialEnd.getDate() + trialPolicy.trial_days);
-  
-  payment.status = 'held_in_escrow';
-  order.status = 'trial_active';
-  order.trialStartedAt = trialStart;
-  order.trialEndsAt = trialEnd;
-  
-  // Mark trial policy as active (product is now in trial)
-  trialPolicy.active = true;
-  await trialPolicy.save({ transaction: t });
-  
-  
+    if (hasTrialPolicy) {
+      const trialStart = new Date();
+      const trialEnd = new Date(trialStart);
+      trialEnd.setDate(trialEnd.getDate() + trialPolicy.trial_days);
+      
+      payment.status = 'held_in_escrow';
+      order.status = 'trial_active';
+      order.trialStartedAt = trialStart;
+      order.trialEndsAt = trialEnd;
+      
+      trialPolicy.active = true;
+      await trialPolicy.save({ transaction: t });
+      
+      console.log(`✅ Trial activated: ${trialPolicy.trial_days} days`);
 
-} else {
-  // NORMAL SALE
-  payment.status = 'released_to_seller';
-  order.status = 'paid';
-  order.completedAt = new Date();
-  order.moneyReleasedTo = product.ownerId;
-}
+    } else {
+      payment.status = 'released_to_seller';
+      order.status = 'paid';
+      order.completedAt = new Date();
+      order.moneyReleasedTo = product.ownerId;
+      
+      console.log(`✅ Payment released to seller: ${product.ownerId}`);
+    }
     
     await payment.save({ transaction: t });
     await order.save({ transaction: t });
 
-    // Mark product unavailable
     product.isAvailable = false;
     await product.save({ transaction: t });
 
     await t.commit();
+    
+    console.log(`🎉 Payment verified successfully for order ${order.id}`);
 
     return res.status(200).json({ 
       message: "Payment verified successfully",
       order: {
         id: order.id,
         status: order.status,
-        hasTrial: hasActiveTrial,
+        hasTrial: hasTrialPolicy,
         trialEndsAt: order.trialEndsAt,
       },
       payment: {
@@ -300,16 +317,15 @@ if (hasTrialPolicy) {
     
   } catch (err) {
     if (t && !t.finished) await t.rollback();
-    console.error("Payment verification error:", err);
-    res.status(500).json({ 
+    console.error("❌ Payment verification error:", err.response?.data || err.message);
+    console.error("Full error:", err);
+    
+    return res.status(500).json({ 
       message: "Payment verification failed", 
-      error: err.message 
+      error: err.response?.data || err.message 
     });
   }
 };
-
-
-
 
 
 export const verifyPaymentt = async (req, res) => {
