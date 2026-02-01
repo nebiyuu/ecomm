@@ -824,7 +824,7 @@ ownerId: "UUID (optional, admin only - for assigning to specific seller)"</pre>
     </ul>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ "checkoutUrl": "https://checkout.chapa.co/..." }</code></li>
+      <li>200: <code>{ "checkoutUrl": "https://checkout.chapa.co/...", "hasTrial": boolean }</code></li>
       <li>400: <code>{ "message": "orderId required | Order not payable" }</code></li>
       <li>404: <code>{ "message": "Order not found" }</code></li>
       <li>500: <code>{ "message": "Payment initiation failed | Failed to get checkout URL from Chapa" }</code></li>
@@ -833,22 +833,80 @@ ownerId: "UUID (optional, admin only - for assigning to specific seller)"</pre>
 
   <div class="endpoint">
     <div><span class="method">POST</span> <code>/api/payments/verify</code> <span class="pill auth">Public</span></div>
-    <div>Verifies payment status with Chapa using transaction reference. Updates payment and order status accordingly.</div>
+    <div>Chapa webhook endpoint for payment verification. Processes payment callbacks and updates payment/order status. Redirects to success/failure pages.</div>
     <h4>Request</h4>
     <ul>
-      <li>Body (JSON):
+      <li>Headers: <code>Content-Type: application/json</code></li>
+      <li>Body (JSON) - Sent by Chapa:
 <pre>{
-  "txRef": "string (required) - Chapa transaction reference"
+  "trx_ref": "string (required) - Chapa transaction reference",
+  "ref_id": "string - Chapa reference ID",
+  "status": "string - Payment status from Chapa"
 }</pre>
+      </li>
+      <li>Query Parameters (alternative):
+        <ul>
+          <li><code>trx_ref</code> - Transaction reference (when sent as query params)</li>
+          <li><code>tx_ref</code> - Alternative transaction reference field</li>
+        </ul>
       </li>
     </ul>
     <h4>Responses</h4>
     <ul>
-      <li>200: <code>{ "message": "Payment verified successfully", "paymentStatus": "paid" }</code></li>
-      <li>200: <code>{ "message": "Payment not successful", "paymentStatus": "failed|pending" }</code></li>
-      <li>400: <code>{ "message": "txRef is required" }</code></li>
+      <li>302: Redirect to <code>http://localhost:3000/payment-success or what ever the frontend is configured to redirect to</code> (successful payment)</li>
+      <li>302: Redirect to <code>http://localhost:3000/payment-failed or what ever the frontend is configured to redirect to</code> (failed payment)</li>
+      <li>400: <code>{ "message": "Transaction reference required" }</code></li>
       <li>404: <code>{ "message": "Payment not found" }</code></li>
-      <li>500: <code>{ "message": "Payment verification failed | Failed to verify payment with Chapa" }</code></li>
+      <li>500: <code>{ "message": "Payment verification failed" }</code></li>
+    </ul>
+    <div class="note">This is a webhook endpoint called by Chapa. Also handles browser redirects from payment completion.</div>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/payments/verifyy</code> <span class="pill auth">Public</span></div>
+    <div>Browser redirect endpoint after payment completion. Simply redirects to success page.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>No parameters required</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>302: Redirect to <code>http://localhost:3000/payment-success</code></li>
+    </ul>
+    <div class="note">This endpoint handles the browser redirect from Chapa checkout. The 'y' in 'verifyy' distinguishes it from the webhook endpoint.</div>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/payments/status</code> <span class="pill auth">Public</span></div>
+    <div>Checks the current status of a payment using transaction reference.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Query Parameters (required):
+        <ul>
+          <li><code>txRef</code> - Chapa transaction reference</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ 
+  "payment": {
+    "status": "pending|released_to_seller|held_in_escrow|failed",
+    "amount": "number",
+    "currency": "string",
+    "paidAt": "ISO date | null",
+    "chapaTxRef": "string"
+  },
+  "order": {
+    "id": "UUID",
+    "status": "pending|trial_active|paid|returned|cancelled",
+    "trialEndsAt": "ISO date | null",
+    "hasTrial": "boolean"
+  }
+}</code></li>
+      <li>400: <code>{ "message": "Transaction reference (txRef) is required" }</code></li>
+      <li>404: <code>{ "message": "Payment not found" | "Order not found for this payment" }</code></li>
+      <li>500: <code>{ "message": "Failed to check payment status", "error": "..." }</code></li>
     </ul>
   </div>
 
