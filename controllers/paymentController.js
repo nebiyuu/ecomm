@@ -53,7 +53,7 @@ export const createChapaSubaccount = async (sellerData) => {
 
 export const initiatePayment = async (req, res) => {
   const t = await sequelize.transaction();
-  
+  console.log("Initiating payment for order:", req.body.orderId);
   try {
     const { orderId } = req.body;
 
@@ -121,7 +121,7 @@ export const initiatePayment = async (req, res) => {
       phone_number: buyer.phoneNumber || "0911111111",
       tx_ref: txRef,
       callback_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verify`,
-      return_url: `${process.env.FRONTEND_URL}/orders/${order.id}`,
+      return_url: `https://indicial-fredrick-hoppingly.ngrok-free.dev/api/payments/verifyy`, // ✅
       customization: {
         title: "Order Payment",
         description: `Payment for ${product.name}`,
@@ -179,21 +179,23 @@ export const initiatePayment = async (req, res) => {
 };
 
 export const verifyPayment = async (req, res) => {
+  console.log("🔥 verifyPayment FUNCTION CALLED!!! Method:", req.method, "URL:", req.originalUrl);
   const t = await sequelize.transaction();
+  console.log("📥 Callback received");
   
   try {
     console.log("📥 Callback received");
     console.log("Query params:", req.query);
     console.log("Body:", req.body);
-    console.log("Headers:", req.headers);
+    //console.log("Headers:", req.headers);
     console.log("Full URL:", req.originalUrl);
     
     // Chapa can send data in multiple ways - check all of them
     const txRef = req.query.trx_ref || 
                   req.query.tx_ref ||
-                  req.body.trx_ref || 
-                  req.body.tx_ref ||
-                  req.body.txRef ||
+                  (req.body && req.body.trx_ref) || 
+                  (req.body && req.body.tx_ref) ||
+                  (req.body && req.body.txRef) ||
                   req.params.txRef;
     
     console.log("✅ Extracted txRef:", txRef);
@@ -225,6 +227,9 @@ export const verifyPayment = async (req, res) => {
       await t.rollback();
       return res.status(404).json({ message: "Payment not found" });
     }
+
+
+    console.log("payment.status: ",payment.status)
 
     if (payment.status !== 'pending') {
       await t.rollback();
@@ -301,92 +306,102 @@ export const verifyPayment = async (req, res) => {
     
     console.log(`🎉 Payment verified successfully for order ${order.id}`);
 
-    return res.status(200).json({ 
-      message: "Payment verified successfully",
-      order: {
-        id: order.id,
-        status: order.status,
-        hasTrial: hasTrialPolicy,
-        trialEndsAt: order.trialEndsAt,
-      },
-      payment: {
-        status: payment.status,
-        amount: payment.amount,
-      }
-    });
+return res.redirect("http://localhost:3000/payment-success");
+
     
   } catch (err) {
     if (t && !t.finished) await t.rollback();
     console.error("❌ Payment verification error:", err.response?.data || err.message);
     console.error("Full error:", err);
     
-    return res.status(500).json({ 
-      message: "Payment verification failed", 
-      error: err.response?.data || err.message 
-    });
+return res.redirect("http://localhost:3000/payment-failed");
+
   }
 };
 
 
-export const verifyPaymentt = async (req, res) => {
-  const t = await sequelize.transaction();
+
+export const handlePaymentRedirect = async (req, res) => {
+  return res.redirect("http://localhost:3000/payment-success");
+};
+
+
+export const checkPaymentStatus = async (req, res) => {
+      console.log("checking status for:" + req.query.txRef);
 
   try {
-    const { txRef } = req.body;
+    const { txRef } = req.query;
 
     if (!txRef) {
-      return res.status(400).json({ message: "txRef is required" });
+      return res.status(400).json({ message: "Transaction reference (txRef) is required" });
     }
 
-    // Find the payment record
-    const payment = await Payment.findOne({ where: { chapaTxRef: txRef }, transaction: t });
+    const payment = await Payment.findOne({ 
+      where: { chapaTxRef: txRef }
+    });
+
     if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
     }
 
-    // Call Chapa verify API
-    const chapaRes = await axios.get(`https://api.chapa.co/v1/transaction/verify/${txRef}`, {
-      headers: {
-        Authorization: `Bearer ${process.env.chapa_Secret_key}`,
-      },
+    console.log("Payment found:", { 
+      paymentId: payment.id, 
+      orderId: payment.orderId, 
+      status: payment.status 
     });
 
-    const status = chapaRes.data?.data?.status;
+    // Find order separately to avoid association issues
+    console.log("Looking up order with ID:", payment.orderId);
+    const order = await Order.findByPk(payment.orderId);
 
-    if (!status) {
-      await t.rollback();
-      return res.status(500).json({ message: "Failed to verify payment with Chapa" });
+    console.log("Order lookup result:", order ? {
+      id: order.id,
+      status: order.status,
+      productId: order.productId
+    } : "NULL");
+
+    if (!order) {
+      console.log("Order not found for payment:", {
+        paymentId: payment.id,
+        orderId: payment.orderId
+      });
+      return res.status(404).json({ message: "Order not found for this payment" });
     }
 
-    if (status === "success") {
-      // Update payment and order
-      await payment.update({
-        status: "paid",
-        paidAt: new Date()
-      }, { transaction: t });
-      
-      console.log("Payment verified: ",JSON.stringify({ status: payment.status, paidAt: payment.paidAt }, null, 2));
+    // Try to get product separately if needed
+    let hasTrial = false;
+    try {
+      const product = await Product.findByPk(order.productId, {
+        include: [{ model: TrialPolicy, as: 'trialPolicy' }]
+      });
+      hasTrial = !!(product && product.trialPolicy);
+    } catch (productErr) {
+      console.log("Product lookup failed:", productErr.message);
+      hasTrial = false;
+    }
 
-      const order = await Order.findByPk(payment.orderId, { transaction: t });
-      if (order) {
-        order.status = "paid";
-        console.log("Order verified: ",JSON.stringify(order.status, null, 2));
-        await order.save({ transaction: t });
+    return res.status(200).json({
+      payment: {
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        paidAt: payment.paidAt,
+        chapaTxRef: payment.chapaTxRef
+      },
+      order: {
+        id: order.id,
+        status: order.status,
+        trialEndsAt: order.trialEndsAt,
+        hasTrial: hasTrial
       }
-
-      await t.commit();
-      return res.status(200).json({ message: "Payment verified successfully", paymentStatus: payment.status });
-    } else {
-      // Failed or pending
-      payment.status = status === "failed" ? "failed" : "pending";
-      await payment.save({ transaction: t });
-      await t.commit();
-      return res.status(200).json({ message: "Payment not successful", paymentStatus: payment.status });
-    }
+    });
 
   } catch (err) {
-    await t.rollback();
-    console.error(err.response?.data || err.message);
-    res.status(500).json({ message: "Payment verification failed" });
+    console.error("❌ Payment status check error:", err.message);
+    return res.status(500).json({ 
+      message: "Failed to check payment status", 
+      error: err.message 
+    });
   }
 };
+

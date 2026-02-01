@@ -41,6 +41,7 @@ export const createOrder = async (req, res) => {
         id: uuidv4(),
         buyerId: buyer.id,
         productId: product.id,
+      
         totalPrice,
         trialStartedAt: trialStartedAt || null,
         trialEndsAt: trialEndsAt || null,

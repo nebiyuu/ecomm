@@ -2,3 +2,7 @@
 /node_modules
 /imgs
 *something.txt
+/uploads
+/uploads/*
+/scripts
+/scripts/*
