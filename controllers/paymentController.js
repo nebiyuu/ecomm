@@ -23,11 +23,11 @@ export const createChapaSubaccount = async (sellerData) => {
         bank_code: 855, // Tellbirr
         account_number: sellerData.phoneNumber,
         split_type: "percentage", // or "flat"
-        split_value: 0.02, // 2% commission - adjust as needed
+        split_value: 0.05, // 2% commission - adjust as needed
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+          Authorization: `Bearer ${process.env.chapa_Secret_key}`,
           "Content-Type": "application/json",
         },
       }
@@ -39,7 +39,15 @@ export const createChapaSubaccount = async (sellerData) => {
       data: response.data.data,
     };
   } catch (error) {
-    console.error("Chapa subaccount error:", error.response?.data || error.message);
+    console.error("Chapa subaccount error - Full response:", JSON.stringify(error.response?.data, null, 2));
+    console.error("Request data:", {
+      business_name: sellerData.businessName || sellerData.username,
+      account_name: sellerData.firstName,
+      bank_code: 855,
+      account_number: sellerData.phoneNumber,
+      split_type: "percentage",
+      split_value: 0.02,
+    });
     return {
       success: false,
       error: error.response?.data?.message || error.message,
@@ -90,15 +98,34 @@ export const initiatePayment = async (req, res) => {
     const hasActiveTrial = !!trialPolicy;
 
     // Only need seller subaccount for normal sales (no trial)
-    let owner;
+    let productOwner;
+    let seller;
     if (!hasActiveTrial) {
-      owner = await User.findByPk(product.ownerId, { transaction: t });
-      if (!owner || !owner.chapaSubaccountId) {
+      console.log("Product owner ID:", product.ownerId);
+      console.log("Product ID:", product.id);
+      productOwner = await User.findByPk(product.ownerId, { transaction: t });
+      if (!productOwner) {
         await t.rollback();
-        return res.status(400).json({ message: "Seller subaccount not configured" });
+        return res.status(400).json({ message: "Product owner not found" });
       }
+      
+      // Search for seller by email to get their phone number
+      seller = await Seller.findOne({ 
+        where: { email: productOwner.email },
+        transaction: t 
+      });
+      console.log("Seller found:", seller);
+      
+      if (!seller) {
+        await t.rollback();
+        return res.status(400).json({ message: "Seller not found with email: " + productOwner.email });
+      }
+      
+      console.log("productOwner.chapaSubaccountId: ", productOwner?.chapaSubaccountId);
+      console.log("seller.phoneNumber: ", seller?.phoneNumber);
     }
 
+  
     const txRef = await chapa.genTxRef();
     console.log("Transaction reference:", txRef);
 
@@ -112,6 +139,52 @@ export const initiatePayment = async (req, res) => {
     }, { transaction: t });
 
     // Build Chapa payment payload
+    
+    
+    // Handle subaccount creation only for non-trial products
+    if (productOwner && !productOwner.chapaSubaccountId) {
+      // Validate required fields before creating subaccount
+      if (!seller.phoneNumber) {
+        await t.rollback();
+        return res.status(400).json({ message: "Seller phone number is required for subaccount creation" });
+      }
+      
+      if (!seller.firstName) {
+        await t.rollback();
+        return res.status(400).json({ message: "Seller first name is required for subaccount creation" });
+      }
+      
+      console.log("Creating subaccount for seller:", {
+        businessName: seller.storeName || seller.username,
+        accountName: seller.firstName,
+        phoneNumber: seller.phoneNumber,
+      });
+      
+      // Create subaccount and assign it to productOwner.chapaSubaccountId
+      const chapaResult = await createChapaSubaccount({
+        businessName: seller.storeName || seller.username,
+        username: seller.username,
+        firstName: seller.firstName,
+        phoneNumber: seller.phoneNumber,
+      });
+      
+
+      //save it t
+      if (!chapaResult.success) {
+        console.log("❌ Failed to create Chapa subaccount:", chapaResult.error);
+        await t.rollback();
+        return res.status(400).json({
+          message: "Failed to create Chapa subaccount",
+          error: chapaResult.error,
+        });
+      } else {
+        // Save subaccount ID to User model immediately after creation
+        productOwner.chapaSubaccountId = chapaResult.subaccountId;
+        console.log("✅ Subaccount ID saved to User model:", productOwner.chapaSubaccountId);
+        await productOwner.save({ transaction: t });
+      }
+    }
+
     const chapaPayload = {
       amount: Number(order.totalPrice),
       currency: "ETB",
@@ -127,14 +200,12 @@ export const initiatePayment = async (req, res) => {
         description: `Payment for ${product.name}`,
       }
     };
-
+    console.log("✅ Chapa payload before subaccount:", chapaPayload);
     // Add subaccount split only for normal sales (no trial)
-    if (!hasActiveTrial) {
-      chapaPayload.subaccounts = {
-        id: owner.chapaSubaccountId,
-        split_type: "percentage",
-        split_value: 5,
-      };
+    if (!hasActiveTrial && productOwner && productOwner.chapaSubaccountId) {
+      console.log("✅ Adding subaccount to payload:", productOwner.chapaSubaccountId);
+      chapaPayload.subaccount_id = productOwner.chapaSubaccountId;
+      console.log("✅ Subaccount ID added to payload:", chapaPayload.subaccount_id);
     }
 
     // Initialize payment with Chapa
