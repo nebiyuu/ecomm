@@ -808,6 +808,140 @@ ownerId: "UUID (optional, admin only - for assigning to specific seller)"</pre>
     </ul>
   </div>
 
+  <h2>Rental Orders</h2>
+
+  <div class="endpoint">
+    <div><span class="method">POST</span> <code>/api/rental-orders</code> <span class="pill protected">JWT</span></div>
+    <div>Creates a new rental order booking. Automatically calculates costs and checks availability.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Body (JSON):
+<pre>{
+  "rentableId": "UUID (required)",
+  "startDate": "ISO date (required, cannot be in past)",
+  "endDate": "ISO date (required, must be after start date)",
+  "notes": "string (optional, max 1000 chars)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>201: <code>{ "success": true, "message": "Rental order created successfully", "data": {...} }</code></li>
+      <li>400: <code>{ "success": false, "message": "Rentable product not found or not available | Product is not available for selected dates | You cannot rent your own product" }</code></li>
+      <li>401: <code>{ "success": false, "message": "Unauthorized" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error creating rental order", "error": "..." }</code></li>
+    </ul>
+    <div class="note">Automatically calculates totalCost (dailyRate × rental days) and depositAmount (20% of totalCost).</div>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rental-orders</code> <span class="pill protected">JWT</span></div>
+    <div>Lists all rental orders with filtering and pagination. Admins can see all, users see their own.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+          <li><code>status</code> — Filter by status ("pending", "active", "completed", "cancelled", "overdue")</li>
+          <li><code>renterId</code> — Filter by renter ID (admin only)</li>
+          <li><code>startDate</code> & <code>endDate</code> — Filter by date range</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": [...], "pagination": {...} }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error fetching rental orders", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rental-orders/my-orders</code> <span class="pill protected">JWT</span></div>
+    <div>Get current user's rental orders with pagination and filtering.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Query Parameters (optional):
+        <ul>
+          <li><code>page</code> — Page number (default: 1)</li>
+          <li><code>limit</code> — Items per page (default: 10, max: 100)</li>
+          <li><code>status</code> — Filter by status</li>
+        </ul>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": [...], "pagination": {...} }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error fetching user rental orders", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">GET</span> <code>/api/rental-orders/:id</code> <span class="pill protected">JWT</span></div>
+    <div>Get a specific rental order by ID with full details.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Rental Order ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "data": {...} }</code></li>
+      <li>403: <code>{ "success": false, "message": "You do not have permission to view this rental order" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Rental order not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error fetching rental order", "error": "..." }</code></li>
+    </ul>
+    <div class="note">Users can view their own orders, product owners can view orders for their products, admins can view all.</div>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">PATCH</span> <code>/api/rental-orders/:id</code> <span class="pill protected">JWT</span></div>
+    <div>Updates a rental order. Can modify dates, status, or notes. Recalculates costs if dates change.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Rental Order ID (required)</li>
+      <li>Body (JSON, all fields optional):
+<pre>{
+  "startDate": "ISO date",
+  "endDate": "ISO date",
+  "status": "pending|active|completed|cancelled|overdue",
+  "notes": "string (max 1000 chars)"
+}</pre>
+      </li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "message": "Rental order updated successfully", "data": {...} }</code></li>
+      <li>400: <code>{ "success": false, "message": "Product is not available for the selected dates" }</code></li>
+      <li>403: <code>{ "success": false, "message": "You do not have permission to update this rental order" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Rental order not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error updating rental order", "error": "..." }</code></li>
+    </ul>
+  </div>
+
+  <div class="endpoint">
+    <div><span class="method">DELETE</span> <code>/api/rental-orders/:id</code> <span class="pill protected">JWT</span></div>
+    <div>Deletes a rental order. Only allowed for pending orders.</div>
+    <h4>Request</h4>
+    <ul>
+      <li>Headers: <code>Authorization: Bearer &lt;token&gt;</code></li>
+      <li>Params: <code>id</code> — Rental Order ID (required)</li>
+    </ul>
+    <h4>Responses</h4>
+    <ul>
+      <li>200: <code>{ "success": true, "message": "Rental order deleted successfully" }</code></li>
+      <li>400: <code>{ "success": false, "message": "Cannot delete rental order that is not pending" }</code></li>
+      <li>403: <code>{ "success": false, "message": "You do not have permission to delete this rental order" }</code></li>
+      <li>404: <code>{ "success": false, "message": "Rental order not found" }</code></li>
+      <li>500: <code>{ "success": false, "message": "Error deleting rental order", "error": "..." }</code></li>
+    </ul>
+    <div class="note">Only pending orders can be deleted. Active or completed orders cannot be deleted.</div>
+  </div>
+
   <h2>Payments</h2>
 
   <div class="endpoint">
