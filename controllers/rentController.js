@@ -16,12 +16,12 @@ User.hasMany(Rentable, { foreignKey: 'renterId', as: 'rentables' });
  Product.belongsTo(User, { foreignKey: 'ownerId', as: 'owner' });
  User.hasMany(Product, { foreignKey: 'ownerId', as: 'products' });
 
-// // Helper function to check rentable access
-// const checkRentableAccess = (rentable, userId, role) => {
-//   if (role === 'admin') return true;
-//   if (role === 'seller' && rentable.renterId === userId) return true;
-//   return false;
-// };
+// Helper function to check rentable access
+const checkRentableAccess = (rentable, userId, role) => {
+  if (role === 'admin') return true;
+  if (role === 'seller' && rentable.renterId === userId) return true;
+  return false;
+};
 
  const createRentalProduct = async (req, res, next) => {
       console.log(req.body);
