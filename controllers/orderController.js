@@ -70,7 +70,7 @@ export const getOrder = async (req, res) => {
     const { id } = req.params;
     const order = await Order.findByPk(id, {
       include: [
-        { association: "product", attributes: ["id", "name", "imageUrl", "price"] },
+        { association: "product", attributes: ["id", "name", "images", "price"] },
         { association: "buyer", attributes: ["id", "firstName", "lastName", "email", "phoneNumber"] },
       ],
     });
