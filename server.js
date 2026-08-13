@@ -1,6 +1,10 @@
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import sequelize from "./model/index.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import buyerRoutes from "./routes/buyerRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -31,6 +35,9 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/returns", returnRoutes);
 app.get("/health", (req, res) => res.send("ok"));
+
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "landing.html")));
+app.use(express.static(path.join(__dirname, "public")));
 
 
 
