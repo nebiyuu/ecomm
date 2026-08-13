@@ -52,6 +52,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "deploy/deploy.sh"
           target: "/home/ubuntu/rentry/Rentry-backend"
+          strip_components: 1
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
