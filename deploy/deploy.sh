@@ -4,7 +4,7 @@ set -euo pipefail
 # Deployment script run by GitHub Actions on the EC2 box.
 # Pulls the latest image from GHCR and restarts the app container.
 
-APP_DIR="/opt/rentry"
+APP_DIR="/home/ubuntu/rentry/Rentry-backend"
 IMAGE="ghcr.io/nebiyuu/rentry-backend:latest"
 CONTAINER="rentry-backend"
 PORT="${APP_PORT:-5000}"
